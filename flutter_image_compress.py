@@ -25,39 +25,51 @@ images/icon_foo.png 压缩为 assets/images/ghYmKtb.webp，并生成常量 stati
 import hashlib
 import os
 import re
-from PIL import Image
 
+from PIL import Image
 
 ###################################################################################################################
 ## 加密配置
-CFG_ENCRYPT_ENABLED = True
+CFG_ENCRYPT_ENABLED = False
 CFG_ENCRYPT_SALT = "xyz"  # 加盐是为了区分不同的App相同名字的图片，防止出现相同hash值
-CFG_ENCRYPT_LEN = 5  # 加密长度（hash值截取长度）
+CFG_ENCRYPT_LEN = 5  # 加密长度
 CFG_ENCRYPT_ENHANCED = True  # 是否增强加密算法，生成的文件名会被加密成更随机的字符串（大小写字母+数字），且长度会稍微变长。
 
 ## 生成dart文件配置: /libs/res/images.g.dart
-CFG_DART_PATH = "res"  # /libs/res/
+CFG_DART_DIR = "res"  # /libs/res/
 CFG_DART_CLASS_NAME = "Images"  # 文件名为images.g.dart，类名为 Images
 
 ## 图片输入/输出目录
 CFG_INPUT_DIR = "images"
-CFG_OUTPUT_DIR = "assets/imgs"
+CFG_OUTPUT_DIR = os.path.join("assets", "images")
 
 ## 图片压缩质量
 CFG_COMPRESS_QUALITY = 75
 ###################################################################################################################
 
-img_re = r"^[a-z](_?[0-9a-z])*\.(png|jpg|jpeg|webp)$"
-out_img_re = r"^[a-zA-Z0-9]*\.(jpg|jpeg|webp)$"
+input_re = r"^[a-z](_?[0-9a-z])*\.(png|jpg|jpeg|webp)$"
+output_re = r"^[a-zA-Z0-9]*\.(jpg|jpeg|webp)$"
 alphabet = "abcdefghijkmnopqrstuvwxyz123456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 
 
-def encrypt(filename):
+class File:
+    def __init__(self, filename: str):
+        self.f = filename
+        self.path = os.path.join(CFG_INPUT_DIR, filename)
+        self.name = os.path.splitext(filename)[0]
+        self.ext = os.path.splitext(filename)[1][1:]
+        self.should_compress = False
+        self.o_name = encrypt(self.name)
+        self.o_ext = "webp" if self.ext == "png" or self.ext == "webp" else "jpg"
+        self.o_filename = self.o_name + "." + self.o_ext
+        self.o_path = os.path.join(CFG_OUTPUT_DIR, self.o_filename)
+
+
+def encrypt(name):
     if not CFG_ENCRYPT_ENABLED:
-        return filename
-    hash = hashlib.sha1((filename + CFG_ENCRYPT_SALT).encode()).hexdigest()[
-        :CFG_ENCRYPT_LEN
-    ]
+        return name
+    hash = hashlib.sha1((name + CFG_ENCRYPT_SALT).encode())
+    hash = hash.hexdigest()[:CFG_ENCRYPT_LEN]
     if CFG_ENCRYPT_ENHANCED:
         num = int.from_bytes(hash.encode("ascii"), byteorder="big")
         hash = ""
@@ -67,78 +79,86 @@ def encrypt(filename):
         return hash
     return hash
 
-class InputFile:
-    def __init__(self, f: str):
-        self.f = f
-        self.name = os.path.splitext(f)[0]
-        self.ext = os.path.splitext(f)[1][1:]
-        self.encrypt_name = encrypt(self.name)
 
-    def __str__(self):
-        return f"{self.f} -> {self.name}, {self.ext}, {self.encrypt_name}"
-
-
-class OutputFile:
-    def __init__(self, f: str):
-        self.f = f
-        self.name = os.path.splitext(f)[0]
-        self.ext = os.path.splitext(f)[1][1:]
-
-
-# 读取输入目录
-input_files = []
-for f in os.listdir(CFG_INPUT_DIR):
-    if re.match(img_re, f):
-        input_files.append(InputFile(f))
-    else:
-        print("ignore illegal input file: " + f)
-
-# 读取输出目录
-# 移除已在输入目录中删除了的文件，移除不合法的文件
-output_files = []
-if not os.path.exists(CFG_OUTPUT_DIR):
-    os.makedirs(CFG_OUTPUT_DIR)
-for f in os.listdir(CFG_OUTPUT_DIR):
-    if re.match(out_img_re, f):
-        name = os.path.splitext(f)[0]
-        if name not in [f1.encrypt_name for f1 in input_files]:
-            os.remove(os.path.join(CFG_OUTPUT_DIR, f))
-            print("remove deleted file: " + f)
+def resolve_files():
+    files = []
+    # 读取输入目录
+    for f in os.listdir(CFG_INPUT_DIR):
+        if re.match(input_re, f):
+            files.append(File(f))
         else:
-            output_files.append(OutputFile(f))
-    else:
-        os.remove(os.path.join(CFG_OUTPUT_DIR, f))
-        print("remove illegal output file: " + f)
+            print("ignore illegal input file: " + f)
 
-# 压缩图片
-for f in input_files:
-    if f.encrypt_name in [f1.name for f1 in output_files]:
-        print("ignore compressed file: " + f.name)
-        continue
+    if not os.path.exists(CFG_OUTPUT_DIR):
+        os.makedirs(CFG_OUTPUT_DIR)
 
-    image = Image.open(os.path.join(CFG_INPUT_DIR, f.f))
-    if f.ext == "png":
-        save_path = os.path.join(CFG_OUTPUT_DIR, f.encrypt_name + ".webp")
-        image.save(save_path, "webp", optimize=True, quality=CFG_COMPRESS_QUALITY)
-    else:
-        save_path = os.path.join(CFG_OUTPUT_DIR, f.encrypt_name + "." + f.ext)
-        image.save(save_path, optimize=True, quality=CFG_COMPRESS_QUALITY)
-    image.close()
-    print(f"compress file: {f.name} -> {f.encrypt_name}, {os.path.getsize(os.path.join(CFG_INPUT_DIR, f.f)) // 1024}KB -> {os.path.getsize(save_path) // 1024}KB")
+    # 删除输出目录中不需要的文件（已在输入目录中删除或更名的文件）
+    existing_names = []
+    for f in os.listdir(CFG_OUTPUT_DIR):
+        if re.match(output_re, f):
+            name = os.path.splitext(f)[0]
+            if name not in [ff.o_name for ff in files]:
+                os.remove(os.path.join(CFG_OUTPUT_DIR, f))
+                print("delete file: " + f)
+            else:
+                existing_names.append(name)
+        else:
+            os.remove(os.path.join(CFG_OUTPUT_DIR, f))
+            print("remove illegal output file: " + f)
 
-def to_camel_case(snake_str):
+    for f in files:
+        if f.o_name not in existing_names:
+            f.should_compress = True
+    return files
+
+
+def humansize(filepath):
+    nbytes = os.path.getsize(filepath)
+    suffixes = ["b", "kb", "mb"]
+    i = 0
+    while nbytes >= 1024 and i < len(suffixes) - 1:
+        nbytes /= 1024.0
+        i += 1
+    f = ("%.2f" % nbytes).rstrip("0").rstrip(".")
+    return "%s %s" % (f, suffixes[i])
+
+
+def compress_file(f):
+    Image.open(f.path).save(
+        f.o_path, f.o_ext, optimize=True, quality=CFG_COMPRESS_QUALITY
+    )
+    print(
+        f"compress file: {f.name} -> {f.o_name}, {humansize(f.path)} -> {humansize(f.o_path)}"
+    )
+
+
+def snake_to_camel_case(snake_str):
     components = snake_str.split("_")
     return components[0] + "".join(x.title() for x in components[1:])
 
 
-# 生成dart文件
-dart_file_path = os.path.join("libs", CFG_DART_PATH, CFG_DART_CLASS_NAME.lower() + ".g.dart")
-if not os.path.exists(dart_file_path):
-    os.makedirs(os.path.dirname(dart_file_path))
-    
-with open(dart_file_path, "w") as df:
-    df.write("// This file is generated by flutter_image_compress.py and should not be modified\n\n")
-    df.write("class " + CFG_DART_CLASS_NAME + " {\n")
-    for f in input_files:
-        df.write(f"  static const String {to_camel_case(f.name)} = '{CFG_OUTPUT_DIR}/{f.encrypt_name}.{f.ext}';\n")
-    df.write("}\n")
+def generate_dart_file(files):
+    dart_filepath = os.path.join(
+        "libs", CFG_DART_DIR, CFG_DART_CLASS_NAME.lower() + ".g.dart"
+    )
+    if not os.path.exists(dart_filepath):
+        os.makedirs(os.path.dirname(dart_filepath), exist_ok=True)
+
+    with open(dart_filepath, "w") as df:
+        df.write(
+            "// This file is generated by python and should not be modified\n\n"
+        )
+        df.write("class " + CFG_DART_CLASS_NAME + " {\n")
+        for f in files:
+            image_path = f.o_path.replace("\\", "/")
+            df.write(
+                f"  static const String {snake_to_camel_case(f.name)} = '{image_path}';\n"
+            )
+        df.write("}\n")
+
+
+files = resolve_files()
+for f in files:
+    if f.should_compress:
+        compress_file(f)
+generate_dart_file(files)
