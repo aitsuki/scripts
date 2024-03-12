@@ -36,8 +36,8 @@ CFG_ENCRYPT_SALT = "xyz"  # 加盐是为了区分不同的App相同名字的图�
 CFG_ENCRYPT_LEN = 5  # 加密长度
 CFG_ENCRYPT_ENHANCED = True  # 是否增强加密算法，生成的文件名会被加密成更随机的字符串（大小写字母+数字），且长度会稍微变长。
 
-## 生成dart文件配置: /libs/res/images.g.dart
-CFG_DART_DIR = "res"  # /libs/res/
+## 生成dart文件配置: /lib/res/images.g.dart
+CFG_DART_DIR = "res"  # /lib/res/
 CFG_DART_CLASS_NAME = "Images"  # 文件名为images.g.dart，类名为 Images
 
 ## 图片输入/输出目录
@@ -140,7 +140,7 @@ def snake_to_camel_case(snake_str):
 
 def generate_dart_file(files):
     dart_filepath = os.path.join(
-        "libs", CFG_DART_DIR, CFG_DART_CLASS_NAME.lower() + ".g.dart"
+        "lib", CFG_DART_DIR, CFG_DART_CLASS_NAME.lower() + ".g.dart"
     )
     if not os.path.exists(dart_filepath):
         os.makedirs(os.path.dirname(dart_filepath), exist_ok=True)
