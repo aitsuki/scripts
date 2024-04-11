@@ -1,7 +1,7 @@
 """
 功能：
 对A目录中所有图片进行压缩，保存到B目录。
-- 支持增量文件
+- 支持增量文件和变更文件
 - 支持文件名加密
 - 支持png转换成webp
 - 自动生成dart常量文件
@@ -32,7 +32,7 @@ from PIL import Image
 
 ###################################################################################################################
 ## 加密配置
-CFG_ENCRYPT_ENABLED = False
+CFG_ENCRYPT_ENABLED = True
 CFG_ENCRYPT_SALT = "xyz"  # 加盐是为了区分不同的App相同名字的图片，防止出现相同hash值
 CFG_ENCRYPT_LEN = 5  # 加密长度
 CFG_ENCRYPT_ENHANCED = True  # 是否增强加密算法，生成的文件名会被加密成更随机的字符串（大小写字母+数字），且长度会稍微变长。
@@ -44,6 +44,7 @@ CFG_DART_CLASS_NAME = "Images"  # 文件名为images.g.dart，类名为 Images
 ## 图片输入/输出目录
 CFG_INPUT_DIR = "images"
 CFG_OUTPUT_DIR = os.path.join("assets", "images")
+CFG_MAPPING = "imgs_mapping.txt"
 
 ## 图片压缩质量
 CFG_COMPRESS_QUALITY = 75
@@ -81,6 +82,9 @@ def encrypt(name: str) -> str:
         return hash_str
     return hash_str
 
+def file_sha1(file: File) -> str:
+    with open(file.path, 'rb') as f:
+        return hashlib.sha1(f.read()).hexdigest()
 
 def resolve_files() -> List[File]:
     files: List[File] = []
@@ -97,22 +101,37 @@ def resolve_files() -> List[File]:
     # 删除输出目录中不需要的文件（已在输入目录中删除或更名的文件）
     existing_names: List[str] = []
     for f in os.listdir(CFG_OUTPUT_DIR):
-        if re.match(output_re, f):
-            name = os.path.splitext(f)[0]
-            if name not in [ff.o_name for ff in files]:
-                os.remove(os.path.join(CFG_OUTPUT_DIR, f))
-                print("delete file: " + f)
-            else:
-                existing_names.append(name)
-        else:
+        name = os.path.splitext(f)[0]
+        if name not in [ff.o_name for ff in files]:
             os.remove(os.path.join(CFG_OUTPUT_DIR, f))
-            print("remove illegal output file: " + f)
+            print("delete file: " + f)
+        else:
+            existing_names.append(name)
 
+    # 读取mapping，用于检测文件是否发生变化（同名文件，不同内容）
+    old_mapping = {}
+    with open(CFG_MAPPING, "a+") as mf:
+        mf.seek(0)
+        for line in mf.read().splitlines():
+            m = line.split(" -> ")
+            if len(m) == 2:
+                old_mapping[m[0]] = m[1]
+
+    new_mapping = {}
     for file in files:
+        new_mapping[file.name] = file_sha1(file)
         if file.o_name not in existing_names:
             file.should_compress = True
-    return files
+        elif new_mapping[file.name] != old_mapping.get(file.name):
+            print(f"file has been changed: {file.path}")
+            file.should_compress = True
 
+    # 重新写入mapping
+    with open(CFG_MAPPING, "w") as mf:
+         for k, v in new_mapping.items():
+             mf.write(f"{k} -> {v}\n")
+
+    return files
 
 def humansize(filepath: str):
     nbytes: float = os.path.getsize(filepath)
