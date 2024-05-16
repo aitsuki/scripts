@@ -35,11 +35,11 @@
             }
         }
         if (value.type == "object") {
-            let className = capitalize(fieldname) + "?"
+            let className = capitalize(fieldname)
             if (!codes.get(className)) {
                 jsonschema2Kotlin(className, value, codes)
             }
-            return className
+            return className + "?"
         }
         if (value.type == "array") {
             let type = value.items.type;
@@ -54,7 +54,7 @@
                 }
             }
             if (type == "object") {
-                let className = capitalize(fieldname) + "Item?"
+                let className = capitalize(fieldname) + "Item"
                 jsonschema2Kotlin(className, value.items, codes)
                 return `List<${className}>?`
             }
