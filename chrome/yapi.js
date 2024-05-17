@@ -26,6 +26,7 @@
     function getFieldType(fieldname, value, codes) {
         if (value.type == "string") return "String?"
         if (value.type == "boolean") return "Boolean"
+        if (value.type == "integer") return "Int"
         if (value.type == "number") {
             if (value.mock && value.mock.mock) {
                 if (value.mock.mock == "@float") return "Double"
@@ -41,11 +42,13 @@
             }
             return className + "?"
         }
+        if (value.type == "TimeZone" || value.type == "Locale") return "String?"
         if (value.type == "array") {
             let type = value.items.type;
             if (type == "string") return "List<String>?"
-            if (value.type == "boolean") return "List<Boolean>?"
-            if (value.type == "number") {
+            if (type == "boolean") return "List<Boolean>?"
+            if (type == "integer") return "Int"
+            if (type == "number") {
                 if (value.mock && value.mock.mock) {
                     if (value.mock.mock == "@float") return "List<Double>?"
                     if (value.mock.mock == "@Long") return "List<Long>?"
@@ -58,6 +61,7 @@
                 jsonschema2Kotlin(className, value.items, codes)
                 return `List<${className}>?`
             }
+            if (type == "TimeZone" || type == "Locale") return "String?"
         }
         throw "unknown field type: " + fieldname
     }
@@ -98,7 +102,7 @@
 
     function showCodePanel(jsonschema) {
         let codes = new Map()
-        jsonschema2Kotlin("Data", jsonschema, codes)
+        jsonschema2Kotlin("ReqData", jsonschema, codes)
         let code = [...codes.values()].reverse().join("\n\n")
 
         // Create code panel element
@@ -175,7 +179,7 @@
                 title.appendChild(button)
                 button.addEventListener("click", async () => {
                     let data = await getApiBodyData(apiId)
-                    showCodePanel(JSON.parse(data.data.res_body).data)
+                    showCodePanel(JSON.parse(data.data.res_body))
                 })
             }
         }
