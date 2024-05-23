@@ -6,15 +6,73 @@
 // @author       Aitsuki
 // @match        https://yapi.lioncash.co/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=lioncash.co
-// @grant        none
+// @grant        GM_registerMenuCommand
+// @grant        GM_setValue
+// @grant        GM_getValue
 // ==/UserScript==
 
 (function () {
     'use strict';
 
-    function capitalize(string) {
-        if (!string) return string;
-        return string.charAt(0).toUpperCase() + string.slice(1);
+    const config = {
+        codeType: GM_getValue('codeType', '0')
+    };
+
+    // 添加菜单项以打开配置对话框
+    GM_registerMenuCommand('设置', openConfigDialog);
+
+    function openConfigDialog() {
+        // 创建对话框元素
+        const dialog = document.createElement('dialog');
+        dialog.innerHTML = `
+            <form method="dialog">
+                <h2>代码类型</h2>
+                <label>
+                    <input type="radio" name="option" value="0" ${config.codeType === '0' ? 'checked' : ''}>
+                    Kotlin Moshi
+                </label>
+                <br>
+                <label>
+                    <input type="radio" name="option" value="1" ${config.codeType === '1' ? 'checked' : ''}>
+                    Kotlin Gson
+                </label>
+                <br>
+                <label>
+                    <input type="radio" name="option" value="2" ${config.codeType === '2' ? 'checked' : ''}>
+                    Dart json_serializable
+                </label>
+                <br>
+                <menu>
+                    <button id="saveButton" value="save">保存</button>
+                    <button id="closeButton" value="cancel">取消</button>
+                </menu>
+            </form>
+        `;
+        document.body.appendChild(dialog);
+
+        dialog.showModal();
+
+        dialog.querySelector('#saveButton').addEventListener('click', () => {
+            const codeType = dialog.querySelector('input[name="option"]:checked').value;
+            GM_setValue('codeType', codeType);
+            config.codeType = codeType;
+            dialog.close();
+            document.body.removeChild(dialog);
+        });
+
+        dialog.querySelector('#closeButton').addEventListener('click', () => {
+            dialog.close();
+            document.body.removeChild(dialog);
+        });
+    }
+
+    function capitalize(str) {
+        if (!str) return str;
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function camel2snack(str) {
+        return str.replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase();
     }
 
     /**
@@ -23,7 +81,7 @@
      * @param {Map<string, string>} codes 
      * @returns {string}
      */
-    function getFieldType(fieldname, value, codes) {
+    function getKtFieldType(fieldname, value, codes) {
         if (value.type == "string") return "String?"
         if (value.type == "boolean") return "Boolean"
         if (value.type == "integer") return "Int"
@@ -38,7 +96,7 @@
         if (value.type == "object") {
             let className = capitalize(fieldname)
             if (!codes.get(className)) {
-                jsonschema2Kotlin(className, value, codes)
+                genCode(className, value, codes)
             }
             return className + "?"
         }
@@ -47,7 +105,7 @@
             let type = value.items.type;
             if (type == "string") return "List<String>?"
             if (type == "boolean") return "List<Boolean>?"
-            if (type == "integer") return "Int"
+            if (type == "integer") return "List<Int>?"
             if (type == "number") {
                 if (value.mock && value.mock.mock) {
                     if (value.mock.mock == "@float") return "List<Double>?"
@@ -58,7 +116,56 @@
             }
             if (type == "object") {
                 let className = capitalize(fieldname) + "Item"
-                jsonschema2Kotlin(className, value.items, codes)
+                genCode(className, value.items, codes)
+                return `List<${className}>?`
+            }
+            if (type == "TimeZone" || type == "Locale") return "String?"
+        }
+        throw "unknown field type: " + fieldname
+    }
+
+        /**
+     * @param {string} fieldname
+     * @param {object} value 
+     * @param {Map<string, string>} codes 
+     * @returns {string}
+     */
+    function getDartFieldType(fieldname, value, codes) {
+        if (value.type == "string") return "String?"
+        if (value.type == "boolean") return "bool?"
+        if (value.type == "integer") return "int?"
+        if (value.type == "number") {
+            if (value.mock && value.mock.mock) {
+                if (value.mock.mock == "@float") return "double?"
+                if (value.mock.mock == "@Long") return "int?"
+            } else {
+                return "num?"
+            }
+        }
+        if (value.type == "object") {
+            let className = capitalize(fieldname)
+            if (!codes.get(className)) {
+                genCode(className, value, codes)
+            }
+            return className + "?"
+        }
+        if (value.type == "TimeZone" || value.type == "Locale") return "String?"
+        if (value.type == "array") {
+            let type = value.items.type;
+            if (type == "string") return "List<String>?"
+            if (type == "boolean") return "List<bool>?"
+            if (type == "integer") return "List<int>?"
+            if (type == "number") {
+                if (value.mock && value.mock.mock) {
+                    if (value.mock.mock == "@float") return "List<double>?"
+                    if (value.mock.mock == "@Long") return "List<int>?"
+                } else {
+                    return "List<num>?"
+                }
+            }
+            if (type == "object") {
+                let className = capitalize(fieldname) + "Item"
+                genCode(className, value.items, codes)
                 return `List<${className}>?`
             }
             if (type == "TimeZone" || type == "Locale") return "String?"
@@ -89,20 +196,53 @@
      * @param {Map<string, string>} codes 
      * 
      */
-    function jsonschema2Kotlin(className, jsonschema, codes) {
-        let code = `class ${className}(\n`
-        for (const [key, value] of Object.entries(jsonschema.properties)) {
-            let [obfname, name] = getFieldname(key)
-            let type = getFieldType(name, value, codes)
-            code += `    @Json(name = "${obfname}") val ${name}: ${type}, //${value.description}\n`
+    function genCode(className, jsonschema, codes) {
+        let code = '';
+        if (config.codeType === '0') { // Kotlin + Moshi
+            code += `@JsonClass(generateAdapter = true)\n`
+            code += `class ${className}(\n`
+            for (const [key, value] of Object.entries(jsonschema.properties)) {
+                let [obfname, name] = getFieldname(key)
+                let type = getKtFieldType(name, value, codes)
+                code += `    @Json(name = "${obfname}") val ${name}: ${type}, //${value.description}\n`
+            }
+            code += ")\n"
+        } else if (config.codeType === '1') { // Kotlin + Gson
+            code += `class ${className}(\n`
+            for (const [key, value] of Object.entries(jsonschema.properties)) {
+                let [obfname, name] = getFieldname(key)
+                let type = getKtFieldType(name, value, codes)
+                code += `    @SerializedName("${obfname}") val ${name}: ${type}, //${value.description}\n`
+            }
+            code += ")\n"
+        } else if (config.codeType === '2') { // Dart + json_serializable
+            code += `part '${camel2snack(className)}.g.dart';\n\n`
+            code += `@JsonSerializable(createFactory: true, createToJson: true)\n`
+            code += `class ${className} {\n`
+            let fieldnames = []
+            for (const [key, value] of Object.entries(jsonschema.properties)) {
+                let [obfname, name] = getFieldname(key)
+                fieldnames.push(name)
+                let type = getDartFieldType(name, value, codes)
+                code += `  //${value.description}\n`
+                code += `  @JsonKey(name: "${obfname}")\n`
+                code += `  final ${type} ${name};\n\n`
+            }
+            code += `  ${className}({\n`
+            for (const name of fieldnames) {
+                code += `    required this.${name},\n`
+            }
+            code += `  });\n\n`
+            code += `  factory ${className}.fromJson(Map<String, dynamic> json) =>  _\$${className}FromJson(json);\n\n`
+            code += `  Map<String, dynamic> toJson() => _\$${className}ToJson(this);\n`
+            code += "}\n"
         }
-        code += ")\n"
         codes.set(className, code)
     }
 
     function showCodePanel(jsonschema) {
         let codes = new Map()
-        jsonschema2Kotlin("ReqData", jsonschema, codes)
+        genCode("ReqData", jsonschema, codes)
         let code = [...codes.values()].reverse().join("\n\n")
 
         // Create code panel element
