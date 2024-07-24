@@ -82,10 +82,12 @@
      * @returns {string}
      */
     function getKtFieldType(fieldname, value, codes) {
-        if (value.type == "string") return "String?"
-        if (value.type == "boolean") return "Boolean"
-        if (value.type == "integer") return "Int"
-        if (value.type == "number") {
+        let type = value.type.toLowerCase();
+        if (type == "string") return "String?"
+        if (type == "boolean") return "Boolean"
+        if (type == "integer") return "Int"
+        if (type == "long") return "Long"
+        if (type == "number") {
             if (value.mock && value.mock.mock) {
                 if (value.mock.mock == "@float") return "Double"
                 if (value.mock.mock == "@Long") return "Long"
@@ -93,20 +95,21 @@
                 return "String?"
             }
         }
-        if (value.type == "object") {
+        if (type == "object") {
             let className = capitalize(fieldname)
             if (!codes.get(className)) {
                 genCode(className, value, codes)
             }
             return className + "?"
         }
-        if (value.type == "TimeZone" || value.type == "Locale") return "String?"
-        if (value.type == "array") {
-            let type = value.items.type;
-            if (type == "string") return "List<String>?"
-            if (type == "boolean") return "List<Boolean>?"
-            if (type == "integer") return "List<Int>?"
-            if (type == "number") {
+        if (type == "timezone" || type == "locale") return "String?"
+        if (type == "array") {
+            let itemType = value.items.type.toLowerCase();
+            if (itemType == "string") return "List<String>?"
+            if (itemType == "boolean") return "List<Boolean>?"
+            if (itemType == "integer") return "List<Int>?"
+            if (itemType == "long") return "List<Long>?"
+            if (itemType == "number") {
                 if (value.mock && value.mock.mock) {
                     if (value.mock.mock == "@float") return "List<Double>?"
                     if (value.mock.mock == "@Long") return "List<Long>?"
@@ -114,12 +117,12 @@
                     return "List<Any>?"
                 }
             }
-            if (type == "object") {
+            if (itemType == "object") {
                 let className = capitalize(fieldname) + "Item"
                 genCode(className, value.items, codes)
                 return `List<${className}>?`
             }
-            if (type == "TimeZone" || type == "Locale") return "String?"
+            if (itemType == "timezone" || itemType == "locale") return "String?"
         }
         throw "unknown field type: " + fieldname
     }
@@ -131,10 +134,12 @@
      * @returns {string}
      */
     function getDartFieldType(fieldname, value, codes) {
-        if (value.type == "string") return "String?"
-        if (value.type == "boolean") return "bool?"
-        if (value.type == "integer") return "int?"
-        if (value.type == "number") {
+        let type = value.type.toLowerCase();
+        if (type == "string") return "String?"
+        if (type == "boolean") return "bool?"
+        if (type == "integer") return "int?"
+        if (type == "long") return "int?"
+        if (type == "number") {
             if (value.mock && value.mock.mock) {
                 if (value.mock.mock == "@float") return "double?"
                 if (value.mock.mock == "@Long") return "int?"
@@ -142,20 +147,21 @@
                 return "num?"
             }
         }
-        if (value.type == "object") {
+        if (type == "object") {
             let className = capitalize(fieldname)
             if (!codes.get(className)) {
                 genCode(className, value, codes)
             }
             return className + "?"
         }
-        if (value.type == "TimeZone" || value.type == "Locale") return "String?"
-        if (value.type == "array") {
-            let type = value.items.type;
-            if (type == "string") return "List<String>?"
-            if (type == "boolean") return "List<bool>?"
-            if (type == "integer") return "List<int>?"
-            if (type == "number") {
+        if (type == "timezone" || type == "locale") return "String?"
+        if (type == "array") {
+            let itemType = value.items.type.toLowerCase();
+            if (itemType == "string") return "List<String>?"
+            if (itemType == "boolean") return "List<bool>?"
+            if (itemType == "integer") return "List<int>?"
+            if (itemType == "long") return "List<int>>?"
+            if (itemType == "number") {
                 if (value.mock && value.mock.mock) {
                     if (value.mock.mock == "@float") return "List<double>?"
                     if (value.mock.mock == "@Long") return "List<int>?"
@@ -163,12 +169,12 @@
                     return "List<num>?"
                 }
             }
-            if (type == "object") {
+            if (itemType == "object") {
                 let className = capitalize(fieldname) + "Item"
                 genCode(className, value.items, codes)
                 return `List<${className}>?`
             }
-            if (type == "TimeZone" || type == "Locale") return "String?"
+            if (itemType == "timezone" || itemType == "locale") return "String?"
         }
         throw "unknown field type: " + fieldname
     }
