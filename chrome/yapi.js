@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         yapi-extension
 // @namespace    http://tampermonkey.net/
-// @version      2024-05-14
+// @version      2024-07-24
 // @description  复制body，生成kotlin/java/dart实体类
 // @author       Aitsuki
 // @match        https://yapi.lioncash.co/*
