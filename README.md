@@ -8,4 +8,5 @@
 | [flutter_build_config.py](./python/flutter_build_config.py)     | flutter 生成 BuildConfig |
 | [xor_encrypt.py](./python/xor_encrypt.py)                       | 字符串异或加密           |
 | [yapi.js](./chrome/yapi.js)                                     | 从 YAPI 上提取实体类代码 |
+| [yapi.js](./python/yapi.py)                                     | YAPI 代码生成            |
 | [dict.py](./python/dict.py)                                     | 查看公司业务字典项       |
