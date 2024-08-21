@@ -1,9 +1,9 @@
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
-from string_utils import capitalize_first_letter
+from .string_utils import capitalize_first_letter
 
 
 class DataType(Enum):
@@ -23,7 +23,7 @@ class Property:
     obfuscate_name: str
     type: DataType
     description: str = ""
-    items: Optional["Property"] = None
+    items: Union["Property", None] = None
     properties: Dict[str, "Property"] = field(default_factory=dict)
 
 
@@ -88,6 +88,13 @@ class SchemaParser:
                 properties=properties,
             )
         else:
+            if prop_type == DataType.NUMBER:
+                mock_type = data.get("mock", {}).get("mock")
+                if mock_type == "@float":
+                    prop_type = DataType.FLOAT
+                elif mock_type == "@Long":
+                    prop_type = DataType.LONG
+
             return Property(
                 name=name,
                 obfuscate_name=obfuscate_name,

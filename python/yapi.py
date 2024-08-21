@@ -1,7 +1,8 @@
-from yapi_codegen import YApi
+import json
 import os
 import sys
-import json
+
+from yapi_codegen import YApi
 
 # powershell 设置临时环境变量，或者直接配置到用户环境变量方便下次使用
 # $env:YAPI_URL = "https://yapi.lioncash.co/"
