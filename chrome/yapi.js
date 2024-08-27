@@ -155,7 +155,9 @@
     static parse(schema) {
       const classes = [];
       if (schema.type == DataType.ARRAY) {
-        schema = this._obtainObjectSchema(schema);
+        schema = this._obtainObjectSchemaFromArray(schema);
+      } else if (schema.title.startsWith("Response<")) {
+        schema = this._obtainObjectSchemaResponse(schema);
       }
       const mainClass = {
         name: (schema.title || "MainClass").replace(/(?:VO|DTO)$/, ""),
@@ -177,13 +179,26 @@
      * @param {Object} arraySchema - Array schema
      * @returns {Object} - Object schema
      */
-    static _obtainObjectSchema(arraySchema) {
+    static _obtainObjectSchemaFromArray(arraySchema) {
       const matches = (arraySchema.title || "").match(/List<(\w+)>/);
       const title = matches ? matches[1] : null;
 
       const schema = arraySchema.items;
       schema.title = title;
       schema.description = arraySchema.title;
+      return schema;
+    }
+
+    /**
+     * @param {Object} responseSchema - Response schema
+     * @returns {Object} - Object schema
+     */
+    static _obtainObjectSchemaResponse(responseSchema) {
+      const matches = (responseSchema.title || "").match(/Response<(\w+)>/);
+      const title = matches ? matches[1] : null;
+
+      const schema = responseSchema.properties.data;
+      schema.title = title;
       return schema;
     }
 
