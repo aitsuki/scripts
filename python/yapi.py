@@ -2,7 +2,7 @@ import json
 import os
 import sys
 
-from yapi_codegen import YApi
+from yapi_codegen import YApi, SchemaParser
 
 # powershell 设置临时环境变量，或者直接配置到用户环境变量方便下次使用
 # $env:YAPI_URL = "https://yapi.lioncash.co/"
@@ -33,5 +33,14 @@ if user_email is None or user_password is None:
 yapi = YApi(yapi_host)
 yapi.login(user_email, user_password)
 interface_list = yapi.get_interface_list(project_id)
-interface = yapi.get_interface_detail(203507)
+interface = yapi.get_interface_detail(207080)
 req_body_other = json.loads(interface["req_body_other"])
+res_body = json.loads(interface["res_body"])
+
+classes = SchemaParser().parse(req_body_other)
+for cls in classes:
+    print(cls.name)
+
+classes = SchemaParser().parse(res_body)
+for cls in classes:
+    print(cls.name)

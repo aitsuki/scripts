@@ -14,8 +14,26 @@
 (function () {
   "use strict";
 
+  /**
+   * @typedef {Object} CodeType
+   * @property {string} DART
+   * @property {string} KOTLIN
+   */
+
+  /**
+   * @typedef {Object} Config
+   * @property {CodeType} codeType
+   */
+
+  /** @type {CodeType} */
+  const CodeType = {
+    DART: "dart",
+    KOTLIN: "kotlin",
+  };
+
+  /** @type {Config} */
   const config = {
-    codeType: GM_getValue("codeType", "0"),
+    codeType: GM_getValue("codeType", CodeType.DART),
   };
 
   // 添加菜单项以打开配置对话框
@@ -28,24 +46,17 @@
             <form method="dialog">
                 <h2>代码类型</h2>
                 <label>
-                    <input type="radio" name="option" value="0" ${
-                      config.codeType === "0" ? "checked" : ""
-                    }>
-                    Kotlin Moshi
+                    <input type="radio" name="option" value="${
+                      CodeType.DART
+                    }" ${config.codeType === CodeType.DART ? "checked" : ""}>
+                    Dart
                 </label>
                 <br>
                 <label>
-                    <input type="radio" name="option" value="1" ${
-                      config.codeType === "1" ? "checked" : ""
-                    }>
-                    Kotlin Gson
-                </label>
-                <br>
-                <label>
-                    <input type="radio" name="option" value="2" ${
-                      config.codeType === "2" ? "checked" : ""
-                    }>
-                    Dart json_serializable
+                    <input type="radio" name="option" value="${
+                      CodeType.KOTLIN
+                    }" ${config.codeType === CodeType.KOTLIN ? "checked" : ""}>
+                    Kotlin
                 </label>
                 <br>
                 <menu>
@@ -74,197 +85,376 @@
     });
   }
 
-  function capitalize(str) {
-    if (!str) return str;
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  }
+  class StringUtils {
+    /**
+     * 将字符串的首字母大写
+     * @param {string} value
+     * @returns {string}
+     */
+    static capitalizeFirstLetter(value) {
+      return value.charAt(0).toUpperCase() + value.slice(1);
+    }
 
-  function camel2snack(str) {
-    return str.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
+    /**
+     * 将驼峰字符串转成蛇形字符串
+     * @param {string} value
+     * @returns {string}
+     */
+    static camelToSnakeCase(value) {
+      return value.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
+    }
   }
 
   /**
-   * @param {string} fieldname
-   * @param {object} value
-   * @param {Map<string, string>} codes
-   * @returns {string}
+   * @typedef {Object} DataType
+   * @property {string} STRING - "string"
+   * @property {string} BOOLEAN - "boolean"
+   * @property {string} NUMBER - "number"
+   * @property {string} INTEGER - "integer"
+   * @property {string} LONG - "long"
+   * @property {string} FLOAT - "float"
+   * @property {string} OBJECT - "object"
+   * @property {string} ARRAY - "array"
    */
-  function getKtFieldType(fieldname, value, codes) {
-    let type = value.type.toLowerCase();
-    if (type == "string") return "String?";
-    if (type == "boolean") return "Boolean";
-    if (type == "integer") return "Int";
-    if (type == "long") return "Long";
-    if (type == "number") {
-      if (value.mock && value.mock.mock) {
-        if (value.mock.mock == "@float") return "Double";
-        if (value.mock.mock == "@Long") return "Long";
+
+  /** @type {DataType} */
+  const DataType = {
+    STRING: "string",
+    BOOLEAN: "boolean",
+    NUMBER: "number",
+    INTEGER: "integer",
+    LONG: "long",
+    FLOAT: "float",
+    OBJECT: "object",
+    ARRAY: "array",
+  };
+
+  /**
+   * @typedef {Object} Property
+   * @property {string} name
+   * @property {string} obfuscateName
+   * @property {DataType} type
+   * @property {string} [description]
+   * @property {Property|null} [items]
+   * @property {Object.<string, Property>} [properties]
+   */
+
+  /**
+   * @typedef {Object} Class
+   * @property {string} name
+   * @property {Object.<string, Property>} properties
+   * @property {string} [description]
+   */
+
+  class SchemaParser {
+    /**
+     * Parse the schema and return a list of classes
+     * @param {Object} schema - The schema to parse
+     * @returns {Class[]}
+     */
+    static parse(schema) {
+      const classes = [];
+      if (schema.type == DataType.ARRAY) {
+        schema = this._obtainObjectSchema(schema);
+      }
+      const mainClass = {
+        name: (schema.title || "MainClass").replace(/(?:VO|DTO)$/, ""),
+        properties: {},
+        description: schema.description || "",
+      };
+
+      for (const [key, data] of Object.entries(schema.properties || {})) {
+        const prop = this._parseProperty(key, data);
+        mainClass.properties[prop.name] = prop;
+        classes.push(...this._extractNestedClasses(prop.name, prop));
+      }
+
+      classes.unshift(mainClass);
+      return classes;
+    }
+
+    /**
+     * @param {Object} arraySchema - Array schema
+     * @returns {Object} - Object schema
+     */
+    static _obtainObjectSchema(arraySchema) {
+      const matches = (arraySchema.title || "").match(/List<(\w+)>/);
+      const title = matches ? matches[1] : null;
+
+      const schema = arraySchema.items;
+      schema.title = title;
+      schema.description = arraySchema.title;
+      return schema;
+    }
+
+    /**
+     * @param {string} propName - The property name to parse
+     * @returns {[string, string]} - [obfuscateName, name]
+     */
+    static _parsePropertyName(propName) {
+      const pattern = /(\w+)\((\w+)\)/;
+      const matches = propName.match(pattern);
+      if (matches) {
+        return [matches[1], matches[2].slice(2)];
       } else {
-        return "String?";
+        return [propName, propName];
       }
     }
-    if (type == "object") {
-      let className = capitalize(fieldname);
-      if (!codes.get(className)) {
-        genCode(className, value, codes);
+
+    /**
+     * @param {string} key - The property key
+     * @param {Object} data - The property data
+     * @returns {Property}
+     */
+    static _parseProperty(key, data) {
+      const [obfuscateName, name] = this._parsePropertyName(key);
+      const propType = data.type || "string";
+      const description = data.description || "";
+
+      if (propType === DataType.ARRAY) {
+        const items = this._parseProperty(`${name}Item`, data.items || {});
+        return {
+          name,
+          obfuscateName,
+          type: propType,
+          description,
+          items,
+        };
+      } else if (propType === DataType.OBJECT) {
+        const properties = Object.fromEntries(
+          Object.entries(data.properties || {}).map(([k, v]) => [
+            k,
+            this._parseProperty(k, v),
+          ])
+        );
+        return {
+          name,
+          obfuscateName,
+          type: propType,
+          description,
+          properties,
+        };
+      } else {
+        let finalType = propType;
+        if (propType === DataType.NUMBER) {
+          const mockType = data.mock?.mock;
+          if (mockType === "@float") {
+            finalType = DataType.FLOAT;
+          } else if (mockType === "@Long") {
+            finalType = DataType.LONG;
+          }
+        }
+        return {
+          name,
+          obfuscateName,
+          type: finalType,
+          description,
+        };
       }
-      return className + "?";
     }
-    if (type == "timezone" || type == "locale") return "String?";
-    if (type == "array") {
-      let itemType = value.items.type.toLowerCase();
-      if (itemType == "string") return "List<String>?";
-      if (itemType == "boolean") return "List<Boolean>?";
-      if (itemType == "integer") return "List<Int>?";
-      if (itemType == "long") return "List<Long>?";
-      if (itemType == "number") {
-        if (value.mock && value.mock.mock) {
-          if (value.mock.mock == "@float") return "List<Double>?";
-          if (value.mock.mock == "@Long") return "List<Long>?";
-        } else {
-          return "List<Any>?";
+
+    /**
+     * @param {string} name
+     * @param {Property} prop
+     * @returns {Class[]}
+     */
+    static _extractNestedClasses(name, prop) {
+      const classes = [];
+      if (prop.type === DataType.OBJECT) {
+        const newClass = {
+          name: StringUtils.capitalizeFirstLetter(name),
+          properties: prop.properties,
+        };
+        classes.push(newClass);
+        for (const nestedProp of Object.values(prop.properties)) {
+          classes.push(
+            ...this._extractNestedClasses(
+              `${StringUtils.capitalizeFirstLetter(
+                name
+              )}${StringUtils.capitalizeFirstLetter(nestedProp.name)}`,
+              nestedProp
+            )
+          );
+        }
+      } else if (prop.type === DataType.ARRAY && prop.items) {
+        classes.push(...this._extractNestedClasses(`${name}Item`, prop.items));
+      }
+      return classes;
+    }
+  }
+
+  class CodeGenerator {
+    /**
+     * Generate dart classes
+     * @param {Class[]} classes
+     */
+    static generateDartClasses(classes) {
+      /**
+       * @param {Property} prop
+       * @returns {string} - 对应的dart类型
+       */
+      function convertToDartType(prop) {
+        switch (prop.type) {
+          case DataType.STRING:
+            return "String";
+          case DataType.BOOLEAN:
+            return "bool";
+          case DataType.NUMBER:
+            return "double";
+          case DataType.INTEGER:
+          case DataType.LONG:
+            return "int";
+          case DataType.FLOAT:
+            return "double";
+          case DataType.OBJECT:
+            return StringUtils.capitalizeFirstLetter(prop.name);
+          case DataType.ARRAY:
+            if (prop.items) {
+              const itemType = convertToDartType(prop.items);
+              return `List<${itemType}>`;
+            } else {
+              return `List<dynamic>`;
+            }
+          default:
+            return "dynamic";
         }
       }
-      if (itemType == "object") {
-        let className = capitalize(fieldname) + "Item";
-        genCode(className, value.items, codes);
-        return `List<${className}>?`;
-      }
-      if (itemType == "timezone" || itemType == "locale") return "String?";
-    }
-    throw "unknown field type: " + fieldname;
-  }
 
-  /**
-   * @param {string} fieldname
-   * @param {object} value
-   * @param {Map<string, string>} codes
-   * @returns {string}
-   */
-  function getDartFieldType(fieldname, value, codes) {
-    let type = value.type.toLowerCase();
-    if (type == "string") return "String?";
-    if (type == "boolean") return "bool?";
-    if (type == "integer") return "int?";
-    if (type == "long") return "int?";
-    if (type == "number") {
-      if (value.mock && value.mock.mock) {
-        if (value.mock.mock == "@float") return "double?";
-        if (value.mock.mock == "@Long") return "int?";
-      } else {
-        return "num?";
+      /**
+       * Generate Dart property
+       * @param {Property} prop - The property
+       * @returns {string} - The generated Dart property
+       */
+      function generateProperty(prop) {
+        let type = convertToDartType(prop);
+        const description = prop.description
+          ? `  /// ${prop.description}\n`
+          : "";
+        return `${description}  @JsonKey(name: '${prop.obfuscateName}')\n  final ${type}? ${prop.name};\n`;
       }
-    }
-    if (type == "object") {
-      let className = capitalize(fieldname);
-      if (!codes.get(className)) {
-        genCode(className, value, codes);
+
+      /**
+       * Generate Dart class
+       * @param {Class} cls - The class
+       * @returns {string} - The generated Dart class
+       */
+      function generateClass(cls) {
+        const className = cls.name;
+        const description = cls.description ? `/// ${cls.description}\n` : "";
+        const properties = Object.values(cls.properties)
+          .map(generateProperty)
+          .join("\n");
+
+        const constructorParams = Object.values(cls.properties)
+          .map((prop) => `this.${prop.name}`)
+          .join(", ");
+
+        return `
+${description}@JsonSerializable()
+class ${className} {
+${properties}
+  ${className}({${constructorParams}});
+
+  factory ${className}.fromJson(Map<String, dynamic> json) => _$${className}FromJson(json);
+
+  Map<String, dynamic> toJson() => _$${className}ToJson(this);
+}
+`;
       }
-      return className + "?";
+
+      const imports = `import 'package:json_annotation/json_annotation.dart';
+
+part '${StringUtils.camelToSnakeCase(classes[0].name)}.g.dart';
+    
+`;
+      const generatedClasses = classes.map(generateClass).join("\n");
+      return imports + generatedClasses;
     }
-    if (type == "timezone" || type == "locale") return "String?";
-    if (type == "array") {
-      let itemType = value.items.type.toLowerCase();
-      if (itemType == "string") return "List<String>?";
-      if (itemType == "boolean") return "List<bool>?";
-      if (itemType == "integer") return "List<int>?";
-      if (itemType == "long") return "List<int>>?";
-      if (itemType == "number") {
-        if (value.mock && value.mock.mock) {
-          if (value.mock.mock == "@float") return "List<double>?";
-          if (value.mock.mock == "@Long") return "List<int>?";
-        } else {
-          return "List<num>?";
+
+    /**
+     * Generate kotlin classes
+     * @param {Class[]} classes
+     */
+    static generateKotlinClasses(classes) {
+      /**
+       * @param {Property} prop
+       * @returns {string} - 对应的dart类型
+       */
+      function convertToKotlinType(prop) {
+        switch (prop.type) {
+          case DataType.STRING:
+            return "String?";
+          case DataType.BOOLEAN:
+            return "Boolean";
+          case DataType.NUMBER:
+            return "Double";
+          case DataType.INTEGER:
+            return "Int";
+          case DataType.LONG:
+            return "Long";
+          case DataType.FLOAT:
+            return "Double";
+          case DataType.OBJECT:
+            return StringUtils.capitalizeFirstLetter(prop.name) + "?";
+          case DataType.ARRAY:
+            if (prop.items) {
+              const itemType = convertToKotlinType(prop.items);
+              return `List<${itemType}>?`;
+            } else {
+              return `List<Any>?`;
+            }
+          default:
+            return "Any?";
         }
       }
-      if (itemType == "object") {
-        let className = capitalize(fieldname) + "Item";
-        genCode(className, value.items, codes);
-        return `List<${className}>?`;
+
+      /**
+       * Generate Kotlin property
+       * @param {Property} prop - The property
+       * @returns {string} - The generated kotlin property
+       */
+      function generateProperty(prop) {
+        let type = convertToKotlinType(prop);
+        const description = prop.description
+          ? `  /** ${prop.description} */\n`
+          : "";
+        return `${description}  @SerialName(name: "${prop.obfuscateName}")\n  val ${prop.name}: ${type},\n`;
       }
-      if (itemType == "timezone" || itemType == "locale") return "String?";
+
+      /**
+       * Generate Kotlin class
+       * @param {Class} cls - The class
+       * @returns {string} - The generated Kotlin class
+       */
+      function generateClass(cls) {
+        const className = cls.name;
+        const description = cls.description
+          ? `/** ${cls.description} */\n`
+          : "";
+        const properties = Object.values(cls.properties)
+          .map(generateProperty)
+          .join("\n");
+
+        return `
+${description}@Serializable
+class ${className}(
+${properties}
+)
+`;
+      }
+
+      const imports = `import kotlinx.serialization.SerialName;
+import kotlinx.serialization.Serializable;
+`;
+      const generatedClasses = classes.map(generateClass).join("\n");
+      return imports + generatedClasses;
     }
-    throw "unknown field type: " + fieldname;
   }
 
   /**
-   * mystical(o_userGid) => ["mystical", "userGid"]
-   * @param {string} key
-   * @returns {[string, string]}
+   * @param {string} code
    */
-  function getFieldname(key) {
-    const reg = /(\w+)\((\w+)\)/;
-    let matches = key.match(reg);
-    if (matches) {
-      return [matches[1], matches[2].substring(2)];
-    } else {
-      return [key, key];
-    }
-  }
-
-  /**
-   *
-   * @param {string} className
-   * @param {object} jsonschema
-   * @param {Map<string, string>} codes
-   *
-   */
-  function genCode(className, jsonschema, codes) {
-    let code = "";
-    if (config.codeType === "0") {
-      // Kotlin + Moshi
-      code += `@JsonClass(generateAdapter = true)\n`;
-      code += `class ${className}(\n`;
-      for (const [key, value] of Object.entries(jsonschema.properties)) {
-        let [obfname, name] = getFieldname(key);
-        let type = getKtFieldType(name, value, codes);
-        code += `    @Json(name = "${obfname}") val ${name}: ${type}, //${value.description}\n`;
-      }
-      code += ")\n";
-    } else if (config.codeType === "1") {
-      // Kotlin + Gson
-      code += `class ${className}(\n`;
-      for (const [key, value] of Object.entries(jsonschema.properties)) {
-        let [obfname, name] = getFieldname(key);
-        let type = getKtFieldType(name, value, codes);
-        code += `    @SerializedName("${obfname}") val ${name}: ${type}, //${value.description}\n`;
-      }
-      code += ")\n";
-    } else if (config.codeType === "2") {
-      // Dart + json_serializable
-      code += `part '${camel2snack(className)}.g.dart';\n\n`;
-      code += `@JsonSerializable(createFactory: true, createToJson: true)\n`;
-      code += `class ${className} {\n`;
-      let fieldnames = [];
-      for (const [key, value] of Object.entries(jsonschema.properties)) {
-        let [obfname, name] = getFieldname(key);
-        fieldnames.push(name);
-        let type = getDartFieldType(name, value, codes);
-        code += `  //${value.description}\n`;
-        code += `  @JsonKey(name: "${obfname}")\n`;
-        code += `  final ${type} ${name};\n\n`;
-      }
-      code += `  ${className}({\n`;
-      for (const name of fieldnames) {
-        code += `    required this.${name},\n`;
-      }
-      code += `  });\n\n`;
-      code += `  factory ${className}.fromJson(Map<String, dynamic> json) =>  _\$${className}FromJson(json);\n\n`;
-      code += `  Map<String, dynamic> toJson() => _\$${className}ToJson(this);\n`;
-      code += "}\n";
-    }
-    codes.set(className, code);
-  }
-
-  function showCodePanel(jsonschema) {
-    let codes = new Map();
-    let className = "ReqData";
-    if (jsonschema.title) {
-      className = jsonschema.title.replace("VO", "");
-    }
-    genCode(className, jsonschema, codes);
-    let code = [...codes.values()].reverse().join("\n\n");
-
+  function showCodePanel(code) {
     // Create code panel element
     let codePanel = document.createElement("div");
     codePanel.id = "codePanel";
@@ -328,23 +518,30 @@
 
     let titles = document.querySelectorAll("h2.interface-title");
     for (const title of titles) {
-      if (title.textContent == "请求参数") {
-        let button = document.createElement("button");
-        button.textContent = "Code";
-        title.appendChild(button);
-        button.addEventListener("click", async () => {
-          let data = await getApiBodyData(apiId);
-          showCodePanel(JSON.parse(data.data.req_body_other));
-        });
-      } else if (title.textContent == "返回数据") {
-        let button = document.createElement("button");
-        button.textContent = "Code";
-        title.appendChild(button);
-        button.addEventListener("click", async () => {
-          let data = await getApiBodyData(apiId);
-          showCodePanel(JSON.parse(data.data.res_body));
-        });
+      const isReq = title.textContent == "请求参数";
+      const isRes = title.textContent == "返回数据";
+      if (!isReq && !isRes) {
+        continue;
       }
+      const button = document.createElement("button");
+      button.textContent = "Code";
+      button.addEventListener("click", async () => {
+        const data = await getApiBodyData(apiId);
+        const schemaJson = isReq
+          ? data.data.req_body_other
+          : data.data.res_body;
+        const schema = JSON.parse(schemaJson);
+        const classes = SchemaParser.parse(schema);
+        for (const cls of classes) {
+          console.log(cls.name);
+        }
+        if (config.codeType == CodeType.DART) {
+          showCodePanel(CodeGenerator.generateDartClasses(classes));
+        } else if (config.codeType == CodeType.KOTLIN) {
+          showCodePanel(CodeGenerator.generateKotlinClasses(classes));
+        }
+      });
+      title.appendChild(button);
     }
   }
 
