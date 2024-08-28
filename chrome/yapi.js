@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         yapi-extension
 // @namespace    http://tampermonkey.net/
-// @version      2024-07-24
+// @version      2024-08-28
 // @description  复制body，生成kotlin/java/dart实体类
 // @author       Aitsuki
 // @match        https://yapi.lioncash.co/*
@@ -550,10 +550,13 @@ import kotlinx.serialization.Serializable;
         for (const cls of classes) {
           console.log(cls.name);
         }
-        if (config.codeType == CodeType.DART) {
-          showCodePanel(CodeGenerator.generateDartClasses(classes));
-        } else if (config.codeType == CodeType.KOTLIN) {
-          showCodePanel(CodeGenerator.generateKotlinClasses(classes));
+        switch (config.codeType) {
+          case CodeType.KOTLIN:
+            showCodePanel(CodeGenerator.generateKotlinClasses(classes));
+            break;
+          default:
+            showCodePanel(CodeGenerator.generateDartClasses(classes));
+            break;
         }
       });
       title.appendChild(button);
