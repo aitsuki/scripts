@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         yapi-extension
 // @namespace    http://tampermonkey.net/
-// @version      2024-08-28
+// @version      2024-09-11
 // @description  复制body，生成kotlin/java/dart实体类
 // @author       Aitsuki
 // @match        https://yapi.lioncash.co/*
@@ -156,11 +156,11 @@
       const classes = [];
       if (schema.type == DataType.ARRAY) {
         schema = this._obtainObjectSchemaFromArray(schema);
-      } else if (schema.title.startsWith("Response<")) {
+      } else if (schema.title?.startsWith("Response<")) {
         schema = this._obtainObjectSchemaResponse(schema);
       }
       const mainClass = {
-        name: (schema.title || "MainClass").replace(/(?:VO|DTO)$/, ""),
+        name: (schema.title || "MainClass").replace(/(?:vo|dto)$/i, ""),
         properties: {},
         description: schema.description || "",
       };
