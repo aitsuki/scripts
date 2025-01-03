@@ -41,7 +41,7 @@ selection += ") or ("
 selection += "("
 selection += " or ".join([f"address like '%{keyword}%'" for keyword in addr_ct])
 selection += ") and ("
-selection += " or ".join([f"body not like '%{keyword}%'" for keyword in body_exct])
+selection += " and ".join([f"body not like '%{keyword}%'" for keyword in body_exct])
 selection += "))"
 
 print(selection)
