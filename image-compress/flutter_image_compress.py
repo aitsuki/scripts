@@ -8,7 +8,7 @@
 - 支持修改文件名或删除文件
 
 示例：
-images/icon_foo.png 压缩为 assets/images/ghYmKtb.webp，并生成常量 static const String iconFoo = "assets/images/ghYmKtb.webp";
+images/icon_foo.png 压缩为 assets/images/3.0x/ghYmKtb.webp，并生成常量 static const String iconFoo = "assets/images/3.0x/ghYmKtb.webp";
 
 注意：
 1. 输入目录中的文件名必须使用 snake_case 格式命名，不能以数字开头，例如：icon_foo.png
@@ -32,7 +32,7 @@ from PIL import Image
 
 ###################################################################################################################
 ## 加密配置
-CFG_ENCRYPT_ENABLED = True
+CFG_ENCRYPT_ENABLED = False
 CFG_ENCRYPT_SALT = "xyz"  # 加盐是为了区分不同的App相同名字的图片，防止出现相同hash值
 CFG_ENCRYPT_LEN = 5  # 加密长度
 CFG_ENCRYPT_ENHANCED = True  # 是否增强加密算法，生成的文件名会被加密成更随机的字符串（大小写字母+数字），且长度会稍微变长。
@@ -43,7 +43,8 @@ CFG_DART_CLASS_NAME = "Images"  # 文件名为images.g.dart，类名为 Images
 
 ## 图片输入/输出目录
 CFG_INPUT_DIR = "images"
-CFG_OUTPUT_DIR = os.path.join("assets", "images")
+# 输出目录，3.0x 表示3倍图（蓝湖上选择 xxhdpi 不压缩后下载png）
+CFG_OUTPUT_DIR = os.path.join("assets", "images", "3.0x")
 CFG_MAPPING = "imgs_mapping.txt"
 
 ## 图片压缩质量
@@ -82,9 +83,11 @@ def encrypt(name: str) -> str:
         return hash_str
     return hash_str
 
+
 def file_sha1(file: File) -> str:
-    with open(file.path, 'rb') as f:
+    with open(file.path, "rb") as f:
         return hashlib.sha1(f.read()).hexdigest()
+
 
 def resolve_files() -> List[File]:
     files: List[File] = []
@@ -128,10 +131,11 @@ def resolve_files() -> List[File]:
 
     # 重新写入mapping
     with open(CFG_MAPPING, "w") as mf:
-         for k, v in new_mapping.items():
-             mf.write(f"{k} -> {v}\n")
+        for k, v in new_mapping.items():
+            mf.write(f"{k} -> {v}\n")
 
     return files
+
 
 def humansize(filepath: str):
     nbytes: float = os.path.getsize(filepath)
