@@ -1,3 +1,3 @@
 # Scripts
 
-平时用到的一些脚本，具体看各个子目录中的 README
+- [google-play-console-sign.py](./facebook-android-sdk-key-hash/README.md) 生成 Facebook Android SDK 所需的秘钥哈希
