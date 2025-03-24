@@ -4,10 +4,11 @@
 
 持续性的管理和压缩 Flutter 或 ReacNative 项目图片资源，有效的减小包体积。
 
-- 将 a 目录的原始图片资源压缩到 b 目录，并生成常量类
-- 此脚本会在 a 生成 mapping 文件，重复执行脚本不会导致图片重新压缩
-- 删除/修改 a 目录中的图片会反应到 b 目录（删除或重新压缩）
-- a 和 b 目录都要使用 git 管理，因为 a 和 b 的文件是一一对应的
+- 将 `A` 目录的原始图片资源压缩到 `B` 目录，并生成常量类
+- 此脚本会在 `A` 生成 `mapping` 文件，重复执行脚本不会导致图片重新压缩
+- 删除/修改 `A` 目录中的图片会反应到 `B` 目录（删除或重新压缩）
+
+ps：不要手动修改 `B` 目录的文件和生成的常量类，因为每次执行脚本后会被覆盖
 
 ## 使用
 
@@ -36,6 +37,7 @@ options:
                         输出目录路径 (必须: 例如 assets/images)
   -g GENERATE_FILE, --generate-file GENERATE_FILE
                         生成常量文件（可选：支持ts和dart，例如：constants/images.ts）
+  --ts-path TS_PATH     ts 相对路径（默认 @）
   -q QUALITY, --quality QUALITY
                         压缩质量 (1-100, 默认: 75)
   --no-webp             禁用PNG转WEBP (默认启用)
@@ -43,11 +45,13 @@ options:
 
 ### React Native
 
-React Native 的分辨率自适应图片资源使用文件名进行区分
+React Native 的分辨率自适应图片资源使用文件名进行区分，可以将所有图片都放置在同一个目录。
 
-- icon.png : 1 倍图，对应 android 的 dranwable-hdpi
-- icon@2x.png: 2 倍图， 对应 android 的 drawable-xhdpi
-- icon@3x.png: 3 倍图， 对应 android 的 drawable-xxhdpi
+- `icon.png` : 1 倍图，对应 android 的 dranwable-hdpi
+- `icon@2x.png` : 2 倍图， 对应 android 的 drawable-xhdpi
+- `icon@3x.png` : 3 倍图， 对应 android 的 drawable-xxhdpi
+
+原始图片命名规则： `xxx_yyy_zzz.png`, `xxx_yyy_zzz@2x.png`, `xxx_yyy_zzz@3x.png`
 
 ```shell
 python image.py -i images -o assets/images -g lib/res/images.dart
@@ -55,13 +59,13 @@ python image.py -i images -o assets/images -g lib/res/images.dart
 
 ### Flutter
 
-Flutter 的分辨率自适应图片资源是使用目录进行区分的（放其中一种资源就够了）
+Flutter 的分辨率自适应图片资源是使用目录进行区分的（推荐只其中一种分辨率资源，例如2.0x）
 
-- images : 1 倍图，对应 android 的 dranwable-hdpi
-- images/2.0x ：2 倍图， 对应 android 的 drawable-xhdpi
-- images/3.0x ：3 倍图， 对应 android 的 drawable-xxhdpi
+- `images` : 1 倍图，对应 android 的 dranwable-hdpi
+- `images/2.0x` ：2 倍图， 对应 android 的 drawable-xhdpi
+- `images/3.0x` ：3 倍图， 对应 android 的 drawable-xxhdpi
 
-原始图片命名规则：xxx_yyy_zzz.png
+原始图片命名规则：`xxx_yyy_zzz.png`
 
 ```shell
 python image.py -i images -o assets/images/2.0x -g lib/res/images.dart
