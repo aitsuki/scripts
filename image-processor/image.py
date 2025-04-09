@@ -171,7 +171,7 @@ class ImageProcessor:
                 output_name = re.sub(r"@(\d)x", "", output_name)  # 去掉 @2x 或 @3x
                 output_names.add(output_name)
 
-            output_names = sorted(output_names, key=lambda x: x[0].lower())
+            output_names = sorted(output_names)
             for output_name in output_names:
                 var_name = output_name.split(".")[0]
                 var_name = re.sub(r"_(\w)", lambda m: m.group(1).upper(), var_name)

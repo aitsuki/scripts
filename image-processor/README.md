@@ -54,12 +54,12 @@ React Native 的分辨率自适应图片资源使用文件名进行区分，可�
 原始图片命名规则： `xxx_yyy_zzz.png`, `xxx_yyy_zzz@2x.png`, `xxx_yyy_zzz@3x.png`
 
 ```shell
-python image.py -i images -o assets/images -g lib/res/images.dart
+python image.py -i images -o assets/images -g lib/constants/images.ts
 ```
 
 ### Flutter
 
-Flutter 的分辨率自适应图片资源是使用目录进行区分的（推荐只其中一种分辨率资源，例如2.0x）
+Flutter 的分辨率自适应图片资源是使用目录进行区分的（推荐只其中一种分辨率资源，例如 2.0x）
 
 - `images` : 1 倍图，对应 android 的 dranwable-hdpi
 - `images/2.0x` ：2 倍图， 对应 android 的 drawable-xhdpi
