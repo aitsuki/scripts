@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 echo "请选择JDK版本:"
 echo "1. OpenJDK 21 (默认)"

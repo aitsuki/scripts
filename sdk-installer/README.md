@@ -5,7 +5,7 @@
 ### Ubuntu
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/aitsuki/scripts/main/sdk-installer/android-sdk-installer-for-ubuntu.sh | bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/aitsuki/scripts/main/sdk-installer/android-sdk-installer-for-ubuntu.sh)"
 ```
 
 ## Flutter SDK
@@ -13,5 +13,5 @@ curl -fsSL https://raw.githubusercontent.com/aitsuki/scripts/main/sdk-installer/
 ### Ubuntu
 
 ```shell
-curl -fsSL https://raw.githubusercontent.com/aitsuki/scripts/main/sdk-installer/flutter-sdk-installer-for-ubuntu.sh | bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/aitsuki/scripts/main/sdk-installer/flutter-sdk-installer-for-ubuntu.sh)"
 ```

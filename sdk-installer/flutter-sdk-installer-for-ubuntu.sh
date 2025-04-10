@@ -1,7 +1,7 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 # 获取脚本所在的仓库 URL（为远程执行准备）
-REPO_URL="https://raw.githubusercontent.com/aitsuki/script/main/sdk-installer"
+REPO_URL="https://raw.githubusercontent.com/aitsuki/scripts/main/sdk-installer"
 ANDROID_INSTALLER_URL="${REPO_URL}/android-sdk-installer-for-ubuntu.sh"
 
 echo "======== Flutter SDK 安装程序 ========"
@@ -54,7 +54,7 @@ if [ -z "$ANDROID_HOME" ] || [ ! -d "$HOME/Android/Sdk" ]; then
     
     echo "正在下载 Android SDK 安装脚本..."
     ANDROID_INSTALLER_PATH="/tmp/android-sdk-installer.sh"
-    curl -fsSL "$ANDROID_INSTALLER_URL" -o "$ANDROID_INSTALLER_PATH"
+    curl -fsSL --connect-timeout 30 "$ANDROID_INSTALLER_URL" -o "$ANDROID_INSTALLER_PATH"
     chmod +x "$ANDROID_INSTALLER_PATH"
     
     echo "正在执行 Android SDK 安装脚本..."
