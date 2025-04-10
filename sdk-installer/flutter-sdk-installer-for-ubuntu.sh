@@ -14,37 +14,15 @@ if [ -d "$FLUTTER_HOME" ]; then
     read -r REINSTALL_FLUTTER
 fi
 
-# 提供 Flutter 版本选择
-echo "请选择要安装的 Flutter 版本:"
-echo "1. 最新稳定版 (stable channel) [默认]"
-echo "2. 指定具体版本 (例如 3.13.9)"
-read -ep "请输入选项 [1-2]: " flutter_option
+# 请求输入 Flutter 版本号
+echo "请输入要安装的 Flutter 版本号 (例如 3.19.3):"
+read -ep "版本: " flutter_version
 
-flutter_option=${flutter_option:-1}
-flutter_channel="stable"
-flutter_version=""
-
-case $flutter_option in
-    1)
-        flutter_channel="stable"
-        flutter_version=""
-        ;;
-    2)
-        flutter_channel=""
-        echo "请输入具体的 Flutter 版本号 (例如 3.13.9):"
-        read -ep "版本: " flutter_version
-        if [ -z "$flutter_version" ]; then
-            echo "未输入版本号，将使用最新稳定版"
-            flutter_channel="stable"
-            flutter_version=""
-        fi
-        ;;
-    *)
-        echo "无效选项，将使用最新稳定版"
-        flutter_channel="stable"
-        flutter_version=""
-        ;;
-esac
+# 验证版本号输入
+if [ -z "$flutter_version" ]; then
+    echo "错误: 未输入版本号，安装终止"
+    exit 1
+fi
 
 echo "======== 开始安装 ========"
 
@@ -74,12 +52,37 @@ if [ -z "$ANDROID_HOME" ] || [ ! -d "$HOME/Android/Sdk" ]; then
     fi
 fi
 
-echo "正在安装 Flutter SDK..."
+echo "正在安装 Flutter SDK 版本 $flutter_version..."
 
 # 安装必要的依赖
 echo "正在安装必要的依赖..."
 sudo apt update
-sudo apt install -y wget curl git unzip xz-utils zip libglu1-mesa
+sudo apt install -y wget curl unzip xz-utils zip libglu1-mesa
+
+# 下载和安装 Flutter SDK
+download_flutter() {
+    # 构建下载链接
+    local download_url="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${flutter_version}-stable.tar.xz"
+    local archive_file="/tmp/flutter.tar.xz"
+    
+    echo "正在下载 Flutter SDK 版本 $flutter_version..."
+    echo "下载链接: $download_url"
+    
+    # 下载 Flutter SDK 压缩包
+    if ! curl -fSL --connect-timeout 60 "$download_url" -o "$archive_file"; then
+        echo "下载失败，请检查版本号是否正确或网络连接是否正常"
+        return 1
+    fi
+    
+    # 解压 Flutter SDK
+    echo "正在解压 Flutter SDK..."
+    mkdir -p "$HOME"
+    tar xf "$archive_file" -C "$HOME"
+    
+    # 清理临时文件
+    rm -f "$archive_file"
+    return 0
+}
 
 # 处理 Flutter 安装
 if [ -d "$FLUTTER_HOME" ]; then
@@ -87,31 +90,19 @@ if [ -d "$FLUTTER_HOME" ]; then
         echo "正在删除旧的 Flutter 安装..."
         rm -rf "$FLUTTER_HOME"
         
-        # 根据选择下载对应的 Flutter 版本
-        if [ -n "$flutter_version" ]; then
-            echo "正在下载 Flutter SDK 版本 $flutter_version..."
-            git clone https://github.com/flutter/flutter.git "$FLUTTER_HOME"
-            cd "$FLUTTER_HOME"
-            git fetch --tags
-            git checkout tags/$flutter_version
-        else
-            echo "正在下载 Flutter SDK ($flutter_channel channel)..."
-            git clone https://github.com/flutter/flutter.git -b $flutter_channel "$FLUTTER_HOME"
+        # 下载并安装指定版本
+        if ! download_flutter; then
+            echo "Flutter 安装失败"
+            exit 1
         fi
     else
         echo "跳过安装 Flutter SDK"
     fi
 else
-    # 根据选择下载对应的 Flutter 版本
-    if [ -n "$flutter_version" ]; then
-        echo "正在下载 Flutter SDK 版本 $flutter_version..."
-        git clone https://github.com/flutter/flutter.git "$FLUTTER_HOME"
-        cd "$FLUTTER_HOME"
-        git fetch --tags
-        git checkout tags/$flutter_version
-    else
-        echo "正在下载 Flutter SDK ($flutter_channel channel)..."
-        git clone https://github.com/flutter/flutter.git -b $flutter_channel "$FLUTTER_HOME"
+    # 下载并安装指定版本
+    if ! download_flutter; then
+        echo "Flutter 安装失败"
+        exit 1
     fi
 fi
 
@@ -129,35 +120,22 @@ fi
 # 临时设置 PATH 环境变量
 export PATH="$PATH:$FLUTTER_HOME/bin"
 
-# 预下载 Flutter 依赖
-echo "正在预下载 Flutter 依赖..."
-"$FLUTTER_HOME/bin/flutter" precache
+# 如果 Flutter 目录存在
+if [ -d "$FLUTTER_HOME" ]; then
+    # 禁用 Flutter 分析
+    echo "禁用 Flutter 分析..."
+    "$FLUTTER_HOME/bin/flutter" --disable-analytics
 
-# 检查 Flutter 安装
-echo "正在检查 Flutter 安装..."
-"$FLUTTER_HOME/bin/flutter" doctor
+    # 检查 Flutter 安装
+    echo "正在检查 Flutter 安装..."
+    "$FLUTTER_HOME/bin/flutter" doctor
 
-# 禁用 Flutter 分析
-echo "禁用 flutter 分析"
-"$FLUTTER_HOME/bin/flutter" --disable-analytics
-
-echo "Flutter 安装完成！"
-echo "Flutter 版本："
-"$FLUTTER_HOME/bin/flutter" --version
+    echo "Flutter 安装完成！"
+    echo "Flutter 版本："
+    "$FLUTTER_HOME/bin/flutter" --version
+fi
 
 echo ""
-echo "======== Flutter 版本管理提示 ========"
-echo "你随时可以使用 Git 命令切换 Flutter 版本："
+echo "如需切换版本，请重新运行本脚本并指定所需版本号"
 echo ""
-echo "1. 切换到稳定版:"
-echo "   cd $FLUTTER_HOME && git checkout stable"
-echo ""
-echo "2. 切换到特定版本(例如 3.13.9):"
-echo "   cd $FLUTTER_HOME && git fetch --tags && git checkout tags/3.13.9"
-echo ""
-echo "切换版本后，建议运行:"
-echo "   flutter doctor"
-echo "   flutter precache"
-echo "确保环境设置正确"
-
 echo "现在请运行 'source ~/.bashrc' 或重新启动终端以应用环境变量更改"

@@ -70,6 +70,7 @@ source "$HOME/.bashrc"
 
 # 接受Android SDK许可
 echo "正在安装基本的SDK组件..."
+yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
 yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
 echo "Android SDK 安装完成！"
