@@ -67,6 +67,7 @@ if [ ! -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
 
     # 解压命令行工具
     echo "正在解压命令行工具..."
+    rm -rf "/tmp/cmdline-tools"
     mkdir -p "$ANDROID_HOME/cmdline-tools/latest"
     unzip -q -d "/tmp/cmdline-tools" "$TEMP_ZIP"
     mv /tmp/cmdline-tools/cmdline-tools/* "$ANDROID_HOME/cmdline-tools/latest"
