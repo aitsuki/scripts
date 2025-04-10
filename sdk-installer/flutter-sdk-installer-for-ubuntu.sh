@@ -15,7 +15,7 @@ if [ -d "$FLUTTER_HOME" ]; then
 fi
 
 # 请求输入 Flutter 版本号
-echo "请输入要安装的 Flutter 版本号 (例如 3.19.3):"
+echo "请输入要安装的 Flutter 版本号 (例如 3.29.1):"
 read -ep "版本: " flutter_version
 
 # 验证版本号输入
