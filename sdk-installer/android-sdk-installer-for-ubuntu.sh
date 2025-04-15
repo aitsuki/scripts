@@ -44,7 +44,7 @@ else
     sudo apt update
 
     echo "正在安装所需依赖..."
-    sudo apt install -y curl wget git unzip xz-utils zip libglu1-mesa
+    sudo apt install -y wget git unzip
 
     echo "正在安装 $jdk_version..."
     sudo apt install -y $jdk_version
