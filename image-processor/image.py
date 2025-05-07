@@ -13,13 +13,13 @@ from PIL import Image
 class ImageProcessor:
     def __init__(
         self,
-        input_dir,
-        output_dir,
-        generate_file,
-        ts_path,
-        mapping_file,
-        compress_quality,
-        png_to_webp,
+        input_dir: str,
+        output_dir: str,
+        generate_file: str | None,
+        ts_path: str,
+        mapping_file: str,
+        compress_quality: int,
+        png_to_webp: bool,
     ):
         self.input_dir = input_dir
         self.output_dir = output_dir
@@ -28,27 +28,27 @@ class ImageProcessor:
         self.mapping_path = Path(mapping_file)
         self.compress_quality = compress_quality
         self.png_to_webp = png_to_webp
-        self.mapping: Dict[str, dict] = {}
+        self.mapping: Dict[str, Dict[str, str]] = {}
         self.input_re = re.compile(r"^[a-z](\w)*(@2x|@3x)?\.(png|jpg|jpeg|webp)$")
 
-    def run(self):
+    def run(self) -> None:
         self._load_mapping()
         current_state = self._scan_input_dir()
         self._sync_output_dir(current_state)
         self._save_mapping()
         self._generate_file()
 
-    def _load_mapping(self):
+    def _load_mapping(self) -> None:
         if self.mapping_path.exists():
             with open(self.mapping_path, "r") as f:
                 self.mapping = json.load(f)
 
-    def _save_mapping(self):
+    def _save_mapping(self) -> None:
         os.makedirs(os.path.dirname(self.mapping_path), exist_ok=True)
         with open(self.mapping_path, "w") as f:
             json.dump(self.mapping, f, indent=2)
 
-    def _scan_input_dir(self) -> Dict[str, dict]:
+    def _scan_input_dir(self) -> Dict[str, Dict[str, str]]:
         """扫描输入目录并返回当前状态"""
         current_state = {}
         for root, _, files in os.walk(self.input_dir):
@@ -69,7 +69,7 @@ class ImageProcessor:
                 }
         return current_state
 
-    def _sync_output_dir(self, current_state: Dict[str, dict]):
+    def _sync_output_dir(self, current_state: Dict[str, Dict[str, str]]):
         """同步输出目录"""
         os.makedirs(self.output_dir, exist_ok=True)
 
@@ -114,7 +114,7 @@ class ImageProcessor:
             ext = ".webp"
         return f"{name}{ext}"
 
-    def _process_image(self, input_path: str, output_path: str):
+    def _process_image(self, input_path: str, output_path: Path):
         """处理图片"""
         img = Image.open(input_path)
 
@@ -206,29 +206,29 @@ def parse_args():
     parser.add_argument(
         "-i",
         "--input-dir",
-        help=f"输入目录路径 (必须：例如 raw/images)",
+        help="输入目录路径 (必须：例如 raw/images)",
     )
     parser.add_argument(
         "-o",
         "--output-dir",
-        help=f"输出目录路径 (必须: 例如 assets/images)",
+        help="输出目录路径 (必须: 例如 assets/images)",
     )
     parser.add_argument(
         "-g",
         "--generate-file",
-        help=f"生成常量文件（可选：支持ts和dart，例如：constants/images.ts）",
+        help="生成常量文件（可选：支持ts和dart，例如：constants/images.ts）",
     )
     parser.add_argument(
         "--ts-path",
         default="@",
-        help=f"ts 相对路径（默认 @）",
+        help="ts 相对路径（默认 @）",
     )
     parser.add_argument(
         "-q",
         "--quality",
         type=int,
         default=75,
-        help=f"压缩质量 (1-100, 默认: 75)",
+        help="压缩质量 (1-100, 默认: 75)",
     )
     parser.add_argument(
         "--no-webp", action="store_true", help="禁用PNG转WEBP (默认启用)"
