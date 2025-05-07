@@ -187,12 +187,18 @@ class ImageProcessor:
             class_name = os.path.splitext(os.path.basename(self.generate_file))[0]
             class_name = "".join(word.capitalize() for word in class_name.split("_"))
             f.write("class " + class_name + " {\n")
+
+            output_names = set()
             for info in self.mapping.values():
                 output_name = info["output_name"]
-                var_name = output_name.split(".")[0].replace("@", "")
+                output_name = re.sub(r"@(\d)x", "", output_name)  # 去掉 @2x 或 @3x
+                output_names.add(output_name)
+
+            output_names = sorted(output_names)
+            for output_name in output_names:
+                var_name = output_name.split(".")[0]
                 var_name = re.sub(r"_(\w)", lambda m: m.group(1).upper(), var_name)
-                path = re.sub(r"@\d(\.\d)?x", "", output_name)
-                path = path + "/" + output_name
+                path = self.output_dir + "/" + output_name
                 f.write(f'  static const String {var_name} = "{path}";\n')
             f.write("}\n")
 
