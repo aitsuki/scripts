@@ -3,9 +3,8 @@ import hashlib
 import json
 import os
 import re
-import sys
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 from PIL import Image
 
@@ -15,26 +14,25 @@ class ImageProcessor:
         self,
         input_dir: str,
         output_dir: str,
-        generate_file: str | None,
+        generate_file: str,
         ts_path: str,
         mapping_file: str,
         compress_quality: int,
-        png_to_webp: bool,
     ):
+        self.input_re = re.compile(r"^[a-z](\w)*(@2x|@3x)?\.(png|jpg|jpeg|webp)$")
         self.input_dir = input_dir
         self.output_dir = output_dir
         self.generate_file = generate_file
         self.ts_path = ts_path
         self.mapping_path = Path(mapping_file)
+        self.mapping: Dict[str, str] = {}
+        self.current_state: Dict[str, str] = self._scan_input_dir()
         self.compress_quality = compress_quality
-        self.png_to_webp = png_to_webp
-        self.mapping: Dict[str, Dict[str, str]] = {}
-        self.input_re = re.compile(r"^[a-z](\w)*(@2x|@3x)?\.(png|jpg|jpeg|webp)$")
 
     def run(self) -> None:
         self._load_mapping()
-        current_state = self._scan_input_dir()
-        self._sync_output_dir(current_state)
+        self._scan_input_dir()
+        self._sync_output_dir()
         self._save_mapping()
         self._generate_file()
 
@@ -46,11 +44,11 @@ class ImageProcessor:
     def _save_mapping(self) -> None:
         os.makedirs(os.path.dirname(self.mapping_path), exist_ok=True)
         with open(self.mapping_path, "w") as f:
-            json.dump(self.mapping, f, indent=2)
+            json.dump(self.current_state, f, indent=2)
 
-    def _scan_input_dir(self) -> Dict[str, Dict[str, str]]:
+    def _scan_input_dir(self) -> Dict[str, str]:
         """扫描输入目录并返回当前状态"""
-        current_state = {}
+        current_state: Dict[str, str] = {}
         for root, _, files in os.walk(self.input_dir):
             for filename in files:
                 if not self.input_re.match(filename):
@@ -62,61 +60,50 @@ class ImageProcessor:
 
                 input_path = Path(root) / filename
                 file_hash = self._calculate_hash(input_path)
-                current_state[filename] = {
-                    "hash": file_hash,
-                    "input_path": str(input_path),
-                    "output_name": self._get_output_name(filename),
-                }
+                current_state[filename] = file_hash
         return current_state
 
-    def _sync_output_dir(self, current_state: Dict[str, Dict[str, str]]):
+    def _sync_output_dir(self):
         """同步输出目录"""
         os.makedirs(self.output_dir, exist_ok=True)
 
         # 删除输出目录中不需要的文件（已在输入目录中删除或更名的文件）
         existing_files = set(os.listdir(self.output_dir))
-        needed_files = {v["output_name"] for v in current_state.values()}
+        needed_files = {self._get_output_name(v) for v in self.current_state.keys()}
         for filename in existing_files - needed_files:
             os.remove(os.path.join(self.output_dir, filename))
             print("删除文件：" + filename)
 
         # 处理需要更新的文件
-        for filename, info in current_state.items():
-            output_name = info["output_name"]
+        for filename, hash in self.current_state.items():
+            output_name = self._get_output_name(filename)
             output_path = Path(self.output_dir) / output_name
+            input_path = Path(self.input_dir) / filename
 
             # 检查是否需要处理
             if (
                 filename in self.mapping
-                and self.mapping[filename]["hash"] == info["hash"]
+                and self.mapping[filename] == hash
                 and output_path.exists()
             ):
                 continue
 
             # 执行图片处理
             try:
-                self._process_image(
-                    input_path=info["input_path"], output_path=output_path
-                )
-                # 更新映射
-                self.mapping[filename] = {
-                    "hash": info["hash"],
-                    "output_name": output_name,
-                }
+                self._process_image(input_path, output_path)
             except Exception as e:
                 print(f"处理图片失败: {filename} - {str(e)}")
 
     def _get_output_name(self, filename: str) -> str:
         """生成输出文件名"""
         name, ext = os.path.splitext(filename)
-        # 处理扩展名
-        if self.png_to_webp and ext.lower() == ".png":
+        if ext.lower() == ".png":
             ext = ".webp"
         return f"{name}{ext}"
 
-    def _process_image(self, input_path: str, output_path: Path):
+    def _process_image(self, input_path: Path, output_path: Path):
         """处理图片"""
-        img = Image.open(input_path)
+        img = Image.open(input_path)  # type: ignore
 
         ext = output_path.suffix.lower()
         save_kwargs = {"quality": self.compress_quality}
@@ -126,7 +113,7 @@ class ImageProcessor:
 
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-        img.save(output_path, **save_kwargs)
+        img.save(output_path, **save_kwargs)  # type: ignore
 
         # 获取压缩后文件大小（KB）
         original_size = os.path.getsize(input_path) / 1024
@@ -151,13 +138,13 @@ class ImageProcessor:
         # 生成文件扩展名
         ext = os.path.splitext(self.generate_file)[1].lower()
         if ext == ".ts":
-            self._generate_ts_file()
+            self._generate_ts_file(self.current_state)
         elif ext == ".dart":
-            self._generate_dart_file()
+            self._generate_dart_file(self.current_state)
         else:
             print(f"不支持的文件类型: {ext}")
 
-    def _generate_ts_file(self):
+    def _generate_ts_file(self, current_state: Dict[str, str]):
         """生成 TypeScript 文件"""
         os.makedirs(os.path.dirname(self.generate_file), exist_ok=True)
         with open(self.generate_file, "w") as f:
@@ -165,11 +152,11 @@ class ImageProcessor:
             const_name = os.path.splitext(os.path.basename(self.generate_file))[0]
             f.write("export const " + const_name + " = {\n")
 
-            output_names = set()
-            for info in self.mapping.values():
-                output_name = info["output_name"]
+            output_names: List[str] = []
+            for input_name in current_state.keys():
+                output_name = self._get_output_name(input_name)
                 output_name = re.sub(r"@(\d)x", "", output_name)  # 去掉 @2x 或 @3x
-                output_names.add(output_name)
+                output_names.append(output_name)
 
             output_names = sorted(output_names)
             for output_name in output_names:
@@ -179,7 +166,7 @@ class ImageProcessor:
                 f.write(f'  {var_name}: require("{self.ts_path}/{path}"),\n')
             f.write("};\n")
 
-    def _generate_dart_file(self):
+    def _generate_dart_file(self, current_state: Dict[str, str]):
         """生成 Dart 文件"""
         os.makedirs(os.path.dirname(self.generate_file), exist_ok=True)
         with open(self.generate_file, "w") as f:
@@ -188,11 +175,11 @@ class ImageProcessor:
             class_name = "".join(word.capitalize() for word in class_name.split("_"))
             f.write("class " + class_name + " {\n")
 
-            output_names = set()
-            for info in self.mapping.values():
-                output_name = info["output_name"]
+            output_names: List[str] = []
+            for input_name in current_state.keys():
+                output_name = self._get_output_name(input_name)
                 output_name = re.sub(r"@(\d)x", "", output_name)  # 去掉 @2x 或 @3x
-                output_names.add(output_name)
+                output_names.append(output_name)
 
             output_names = sorted(output_names)
             for output_name in output_names:
@@ -213,16 +200,19 @@ def parse_args():
         "-i",
         "--input-dir",
         help="输入目录路径 (必须：例如 raw/images)",
+        default="raw",
     )
     parser.add_argument(
         "-o",
         "--output-dir",
         help="输出目录路径 (必须: 例如 assets/images)",
+        default="images/3.0x",
     )
     parser.add_argument(
         "-g",
         "--generate-file",
         help="生成常量文件（可选：支持ts和dart，例如：constants/images.ts）",
+        default="lib/images.dart",
     )
     parser.add_argument(
         "--ts-path",
@@ -236,14 +226,6 @@ def parse_args():
         default=75,
         help="压缩质量 (1-100, 默认: 75)",
     )
-    parser.add_argument(
-        "--no-webp", action="store_true", help="禁用PNG转WEBP (默认启用)"
-    )
-
-    # 如果没有提供参数，则显示帮助信息
-    if len(sys.argv) == 1:
-        parser.print_help()
-        sys.exit(1)
 
     # 校验参数
     if not parser.parse_args().input_dir:
@@ -265,6 +247,5 @@ if __name__ == "__main__":
         ts_path=args.ts_path,
         mapping_file=f"{args.input_dir}/_mapping.json",
         compress_quality=args.quality,
-        png_to_webp=not args.no_webp,
     )
     processor.run()
