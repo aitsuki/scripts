@@ -4,7 +4,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 from PIL import Image
 
@@ -18,6 +18,8 @@ class ImageProcessor:
         ts_path: str,
         mapping_file: str,
         compress_quality: int,
+        encrypt_length: int,
+        encrypt_sault: str,
     ):
         self.input_re = re.compile(r"^[a-z](\w)*(@2x|@3x)?\.(png|jpg|jpeg|webp)$")
         self.input_dir = input_dir
@@ -28,6 +30,8 @@ class ImageProcessor:
         self.mapping: Dict[str, str] = {}
         self.current_state: Dict[str, str] = self._scan_input_dir()
         self.compress_quality = compress_quality
+        self.encrypt_length = encrypt_length
+        self.encrypt_sault = encrypt_sault
 
     def run(self) -> None:
         self._load_mapping()
@@ -49,6 +53,7 @@ class ImageProcessor:
     def _scan_input_dir(self) -> Dict[str, str]:
         """扫描输入目录并返回当前状态"""
         current_state: Dict[str, str] = {}
+        input_dir_path = Path(self.input_dir)
         for root, _, files in os.walk(self.input_dir):
             for filename in files:
                 if not self.input_re.match(filename):
@@ -59,31 +64,41 @@ class ImageProcessor:
                     continue
 
                 input_path = Path(root) / filename
+                # 使用相对路径作为键名
+                rel_path = input_path.relative_to(input_dir_path).as_posix()
                 file_hash = self._calculate_hash(input_path)
-                current_state[filename] = file_hash
+                current_state[rel_path] = file_hash
         return current_state
 
     def _sync_output_dir(self):
         """同步输出目录"""
         os.makedirs(self.output_dir, exist_ok=True)
+        input_dir_path = Path(self.input_dir)
 
-        # 删除输出目录中不需要的文件（已在输入目录中删除或更名的文件）
-        existing_files = set(os.listdir(self.output_dir))
-        needed_files = {self._get_output_name(v) for v in self.current_state.keys()}
+        # 删除输出目录中不需要的文件
+        existing_files = set()
+        for root, _, files in os.walk(self.output_dir):
+            for filename in files:
+                rel_path = Path(root) / filename
+                existing_files.add(rel_path.relative_to(self.output_dir).as_posix())
+
+        needed_files = {
+            self._get_output_name(rel_path) for rel_path in self.current_state.keys()
+        }
         for filename in existing_files - needed_files:
-            os.remove(os.path.join(self.output_dir, filename))
+            file_path = Path(self.output_dir) / filename
+            os.remove(file_path)
             print("删除文件：" + filename)
 
         # 处理需要更新的文件
-        for filename, hash in self.current_state.items():
-            output_name = self._get_output_name(filename)
-            output_path = Path(self.output_dir) / output_name
-            input_path = Path(self.input_dir) / filename
+        for rel_path, hash_val in self.current_state.items():
+            input_path = input_dir_path / rel_path
+            output_path = Path(self.output_dir) / self._get_output_name(rel_path)
 
             # 检查是否需要处理
             if (
-                filename in self.mapping
-                and self.mapping[filename] == hash
+                rel_path in self.mapping
+                and self.mapping[rel_path] == hash_val
                 and output_path.exists()
             ):
                 continue
@@ -92,14 +107,22 @@ class ImageProcessor:
             try:
                 self._process_image(input_path, output_path)
             except Exception as e:
-                print(f"处理图片失败: {filename} - {str(e)}")
+                print(f"处理图片失败: {rel_path} - {str(e)}")
 
-    def _get_output_name(self, filename: str) -> str:
-        """生成输出文件名"""
+    def _get_output_name(self, rel_path: str) -> str:
+        """生成输出文件名（加密文件名）"""
+        path_obj = Path(rel_path)
+        # 获取目录部分
+        dir_part = path_obj.parent
+        # 处理文件名部分
+        filename = path_obj.name
         name, ext = os.path.splitext(filename)
+        # 加密文件名（不包括目录）
+        encrypted_name = self._encrypt(name)
         if ext.lower() == ".png":
             ext = ".webp"
-        return f"{name}{ext}"
+        # 组合目录和加密后的文件名
+        return str(dir_part / f"{encrypted_name}{ext}")
 
     def _process_image(self, input_path: Path, output_path: Path):
         """处理图片"""
@@ -124,11 +147,15 @@ class ImageProcessor:
 
     def _calculate_hash(self, filepath: Path) -> str:
         """计算文件哈希"""
-        hash_md5 = hashlib.md5()
         with open(filepath, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_md5.update(chunk)
-        return hash_md5.hexdigest()
+            return hashlib.sha1(f.read()).hexdigest()
+
+    def _encrypt(self, name: str) -> str:
+        """加密文件名（不影响常量名）"""
+        if self.encrypt_length == 0:
+            return name
+        hash_obj = hashlib.sha1((name + self.encrypt_sault).encode())
+        return hash_obj.hexdigest()[: self.encrypt_length]
 
     def _generate_file(self):
         """生成常量文件"""
@@ -152,18 +179,35 @@ class ImageProcessor:
             const_name = os.path.splitext(os.path.basename(self.generate_file))[0]
             f.write("export const " + const_name + " = {\n")
 
-            output_names: List[str] = []
-            for input_name in current_state.keys():
-                output_name = self._get_output_name(input_name)
-                output_name = re.sub(r"@(\d)x", "", output_name)  # 去掉 @2x 或 @3x
-                output_names.append(output_name)
+            # 用于存储变量名和路径的映射
+            var_path_map = {}
 
-            output_names = sorted(output_names)
-            for output_name in output_names:
-                var_name = output_name.split(".")[0]
-                var_name = re.sub(r"_(\w)", lambda m: m.group(1).upper(), var_name)
-                path = self.output_dir + "/" + output_name
-                f.write(f'  {var_name}: require("{self.ts_path}/{path}"),\n')
+            for rel_path in current_state.keys():
+                # 获取原始文件名（用于生成常量名）
+                path_obj = Path(rel_path)
+                # 获取基本名（不含扩展名）
+                name_without_ext = path_obj.stem
+                # 去掉倍率后缀
+                name_without_scale = re.sub(r"@(\d)x", "", name_without_ext)
+                # 生成变量名
+                var_name = re.sub(
+                    r"_(\w)", lambda m: m.group(1).upper(), name_without_scale
+                )
+
+                # 获取加密后的输出路径
+                output_name = self._get_output_name(rel_path)
+                # 组合完整路径
+                full_path = f"{self.ts_path}/{self.output_dir}/{output_name}"
+
+                # 存储变量名和路径
+                var_path_map[var_name] = full_path
+
+            # 按变量名排序
+            sorted_var_names = sorted(var_path_map.keys())
+            for var_name in sorted_var_names:
+                full_path = var_path_map[var_name]
+                f.write(f'  {var_name}: require("{full_path}"),\n')
+
             f.write("};\n")
 
     def _generate_dart_file(self, current_state: Dict[str, str]):
@@ -175,18 +219,35 @@ class ImageProcessor:
             class_name = "".join(word.capitalize() for word in class_name.split("_"))
             f.write("class " + class_name + " {\n")
 
-            output_names: List[str] = []
-            for input_name in current_state.keys():
-                output_name = self._get_output_name(input_name)
-                output_name = re.sub(r"@(\d)x", "", output_name)  # 去掉 @2x 或 @3x
-                output_names.append(output_name)
+            # 用于存储变量名和路径的映射
+            var_path_map = {}
 
-            output_names = sorted(output_names)
-            for output_name in output_names:
-                var_name = output_name.split(".")[0]
-                var_name = re.sub(r"_(\w)", lambda m: m.group(1).upper(), var_name)
-                path = self.output_dir + "/" + output_name
-                f.write(f'  static const String {var_name} = "{path}";\n')
+            for rel_path in current_state.keys():
+                # 获取原始文件名（用于生成常量名）
+                path_obj = Path(rel_path)
+                # 获取基本名（不含扩展名）
+                name_without_ext = path_obj.stem
+                # 去掉倍率后缀
+                name_without_scale = re.sub(r"@(\d)x", "", name_without_ext)
+                # 生成变量名
+                var_name = re.sub(
+                    r"_(\w)", lambda m: m.group(1).upper(), name_without_scale
+                )
+
+                # 获取加密后的输出路径
+                output_name = self._get_output_name(rel_path)
+                # 组合完整路径
+                full_path = f"{self.output_dir}/{output_name}"
+
+                # 存储变量名和路径
+                var_path_map[var_name] = full_path
+
+            # 按变量名排序
+            sorted_var_names = sorted(var_path_map.keys())
+            for var_name in sorted_var_names:
+                full_path = var_path_map[var_name]
+                f.write(f'  static const String {var_name} = "{full_path}";\n')
+
             f.write("}\n")
 
 
@@ -226,19 +287,33 @@ def parse_args():
         default=75,
         help="压缩质量 (1-100, 默认: 75)",
     )
+    parser.add_argument(
+        "-e",
+        "--encrypt-length",
+        type=int,
+        default=6,
+        help="加密后hash截取长度，0~40，0表示不加密，推荐6",
+    )
+    parser.add_argument(
+        "-es",
+        "--encrypt-sault",
+        default="myapp",
+        help="加密加盐，通常是app名字",
+    )
+
+    args = parser.parse_args()
 
     # 校验参数
-    if not parser.parse_args().input_dir:
+    if not args.input_dir:
         parser.error("-i 或 --input-dir 参数缺失")
 
-    if not parser.parse_args().output_dir:
+    if not args.output_dir:
         parser.error("-o 或 --output-dir 参数缺失")
 
-    return parser.parse_args()
+    return args
 
 
 if __name__ == "__main__":
-    # 如果提供了参数，则使用命令行参数
     args = parse_args()
     processor = ImageProcessor(
         input_dir=args.input_dir,
@@ -247,5 +322,7 @@ if __name__ == "__main__":
         ts_path=args.ts_path,
         mapping_file=f"{args.input_dir}/_mapping.json",
         compress_quality=args.quality,
+        encrypt_length=args.encrypt_length,
+        encrypt_sault=args.encrypt_sault,
     )
     processor.run()
