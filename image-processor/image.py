@@ -117,8 +117,21 @@ class ImageProcessor:
         # 处理文件名部分
         filename = path_obj.name
         name, ext = os.path.splitext(filename)
-        # 加密文件名（不包括目录）
-        encrypted_name = self._encrypt(name)
+
+        # 分离基础名称和倍率后缀
+        scale_match = re.search(r"(@\dx)$", name)
+        if scale_match:
+            base_name = name[: scale_match.start()]
+            scale_suffix = scale_match.group(1)
+        else:
+            base_name = name
+            scale_suffix = ""
+
+        # 只加密基础名称部分
+        encrypted_base = self._encrypt(base_name)
+        # 重新组合：加密后的基础名 + 倍率后缀
+        encrypted_name = encrypted_base + scale_suffix
+
         if ext.lower() == ".png":
             ext = ".webp"
         # 组合目录和加密后的文件名
@@ -196,6 +209,8 @@ class ImageProcessor:
 
                 # 获取加密后的输出路径
                 output_name = self._get_output_name(rel_path)
+                # 去除路径中的@xx后缀
+                output_name = re.sub(r"@(\d)x", "", output_name)
                 # 组合完整路径
                 full_path = f"{self.ts_path}/{self.output_dir}/{output_name}"
 
@@ -236,6 +251,7 @@ class ImageProcessor:
 
                 # 获取加密后的输出路径
                 output_name = self._get_output_name(rel_path)
+
                 # 组合完整路径
                 full_path = f"{self.output_dir}/{output_name}"
 
