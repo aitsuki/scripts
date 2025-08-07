@@ -24,23 +24,26 @@ pip install -r requirements.txt
 python scripts/image.py -h
 ```
 
-```
+```shell
 usage: image.py -i raw/images -o assets/images -g constants/images.ts
 
 说明：将 raw/images 目录下的图片，压缩到 assets/images 目录，并生成 images.ts 常量文件
 
 options:
   -h, --help            show this help message and exit
-  -i INPUT_DIR, --input-dir INPUT_DIR
+  -i, --input-dir INPUT_DIR
                         输入目录路径 (必须：例如 raw/images)
-  -o OUTPUT_DIR, --output-dir OUTPUT_DIR
+  -o, --output-dir OUTPUT_DIR
                         输出目录路径 (必须: 例如 assets/images)
-  -g GENERATE_FILE, --generate-file GENERATE_FILE
+  -g, --generate-file GENERATE_FILE
                         生成常量文件（可选：支持ts和dart，例如：constants/images.ts）
   --ts-path TS_PATH     ts 相对路径（默认 @）
-  -q QUALITY, --quality QUALITY
+  -q, --quality QUALITY
                         压缩质量 (1-100, 默认: 75)
-  --no-webp             禁用PNG转WEBP (默认启用)
+  -e, --encrypt-length ENCRYPT_LENGTH
+                        加密后hash截取长度，0~40，0表示不加密，推荐6
+  -es, --encrypt-sault ENCRYPT_SAULT
+                        加密加盐，通常是app名字
 ```
 
 ### React Native
@@ -54,7 +57,7 @@ React Native 的分辨率自适应图片资源使用文件名进行区分，可�
 原始图片命名规则： `xxx_yyy_zzz.png`, `xxx_yyy_zzz@2x.png`, `xxx_yyy_zzz@3x.png`
 
 ```shell
-python image.py -i images -o assets/images -g lib/constants/images.ts
+python image.py -i raw -o img -g src/images.ts
 ```
 
 ### Flutter
