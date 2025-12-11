@@ -24,6 +24,11 @@ if [ -z "$flutter_version" ]; then
     exit 1
 fi
 
+# 询问是否配置中国区代理镜像环境变量
+USE_CN_MIRROR="n"
+echo "请检查flutter项目的pubspec.lock是否使用了[https://pub.flutter-io.cn]？[y/N]"
+read -r USE_CN_MIRROR
+
 echo "======== 开始安装 ========"
 
 # 检查是否已安装 Android SDK
@@ -117,8 +122,27 @@ export PATH="\$PATH:\$FLUTTER_HOME/bin"
 EOF
 fi
 
+# 根据先前选择，写入中国区镜像环境变量
+if [[ $USE_CN_MIRROR =~ ^[Yy]$ ]]; then
+    if ! grep -q "PUB_HOSTED_URL" "$HOME/.bashrc"; then
+        cat <<EOF >> "$HOME/.bashrc"
+
+# Flutter 中国区镜像（可选）
+export PUB_HOSTED_URL="https://pub.flutter-io.cn"
+export FLUTTER_STORAGE_BASE_URL="https://storage.flutter-io.cn"
+EOF
+    fi
+    echo "已写入中国区镜像环境变量(https://pub.flutter-io.cn)到 ~/.bashrc"
+fi
+
 # 临时设置 PATH 环境变量
 export PATH="$PATH:$FLUTTER_HOME/bin"
+
+# 如果选择了镜像，也临时导出到当前会话
+if [[ $USE_CN_MIRROR =~ ^[Yy]$ ]]; then
+    export PUB_HOSTED_URL="https://pub.flutter-io.cn"
+    export FLUTTER_STORAGE_BASE_URL="https://storage.flutter-io.cn"
+fi
 
 # 如果 Flutter 目录存在
 if [ -d "$FLUTTER_HOME" ]; then
