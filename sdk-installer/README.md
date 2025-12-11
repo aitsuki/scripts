@@ -8,7 +8,7 @@
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/aitsuki/scripts/main/sdk-installer/android-sdk-installer-for-ubuntu.sh)"
 ```
 
-安装 OpenJDK (脚本会提示选择JDK版本)，Android SDK 并配置环境变量。
+安装 OpenJDK (脚本会提示选择 JDK 版本)，Android SDK 并配置环境变量。
 
 ## Flutter SDK
 
@@ -18,4 +18,4 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/aitsuki/scripts/main/sdk
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/aitsuki/scripts/main/sdk-installer/flutter-sdk-installer-for-ubuntu.sh)"
 ```
 
-安装 Flutter SDK (脚本会提示输入Flutter版本)，当检测到系统未安装 Android SDK 时支持自动安装。
+安装/更新 Flutter SDK (脚本会提示输入 Flutter 版本)，当检测到系统未安装 Android SDK 时支持自动安装。
