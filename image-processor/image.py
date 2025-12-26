@@ -232,7 +232,7 @@ class ImageProcessor:
             f.write("// Generate by python, should not be modified\n")
             class_name = os.path.splitext(os.path.basename(self.generate_file))[0]
             class_name = "".join(word.capitalize() for word in class_name.split("_"))
-            f.write("class " + class_name + " {\n")
+            f.write("abstract final class " + class_name + " {\n")
 
             # 用于存储变量名和路径的映射
             var_path_map = {}
